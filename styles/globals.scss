@@ -1,0 +1,180 @@
+$primary: #ffa500;
+$secondary: #0051c3;
+$warning: #ffff00;
+
+@import "../node_modules/bootstrap/scss/bootstrap.scss";
+@import "animate.css";
+
+html,
+body {
+  background-image: url("../public/Background.webp");
+  background-size: cover;
+  font-family: "Quicksand", sans-serif;
+}
+
+body::-webkit-scrollbar {
+  width: 10px;
+  height: 5px;
+  margin: 1%;
+}
+
+body::-webkit-scrollbar-track {
+  -webkit-box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.3);
+}
+
+body::-webkit-scrollbar-track-piece {
+  -webkit-box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.3);
+  background-color: #555;
+}
+body::-webkit-scrollbar-thumb {
+  border-radius: 15px;
+  background-color: #333;
+  outline: 1px solid #0051c3;
+}
+
+div::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+div::-webkit-scrollbar-track {
+  -webkit-box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.3);
+  background-color: #555;
+}
+
+div::-webkit-scrollbar-thumb {
+  border-radius: 15px;
+  background-color: #333;
+  outline: 1px solid #0051c3;
+}
+
+.menubuttons {
+  transition: all 0.15s ease-out;
+}
+
+.menubuttons:hover {
+  transform: scale(1.3, 1.3);
+}
+
+.blurBg {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.paddingModal {
+  margin-top: 7%;
+}
+
+.searchBarWidth {
+  width: 75%;
+}
+
+.paddingTopBottom {
+  padding-top: 12vh;
+  padding-bottom: 10vh;
+}
+
+.createProjectBarWidth {
+  width: 80%;
+}
+
+.createProjectBarSize {
+  font-size: 1rem;
+}
+@include media-breakpoint-up(sm) {
+  .searchBarWidth {
+    width: 50%;
+  }
+  .createProjectBarWidth {
+    width: 50%;
+  }
+
+  @include media-breakpoint-up(md) {
+    .searchBarWidth {
+      width: 25%;
+    }
+    .createProjectBarWidth {
+      width: 25%;
+    }
+  }
+  .createProjectBarSize {
+    font-size: 1.3rem;
+  }
+}
+.zIndex-2000 {
+  z-index: 2000;
+}
+
+@include media-breakpoint-down(md) {
+  .paddingTopBottom {
+    padding-top: 17vh;
+    padding-bottom: 10vh;
+  }
+}
+@include media-breakpoint-down(sm) {
+  .fontSmall {
+    font-size: 11px;
+  }
+  .paddingTopBottom {
+    padding-top: 22vh;
+    padding-bottom: 10vh;
+  }
+}
+
+.width-100 {
+  max-width: 80vw;
+  width: 90vw;
+}
+
+.screen-100 {
+  height: 100vh;
+}
+
+.screen-80 {
+  height: 80vh;
+}
+
+.scaleEffect {
+  transition: all 0.5s ease-out;
+}
+.scaleEffect:hover {
+  transform: scale(1.05, 1.05);
+}
+.shadowEffect {
+  box-shadow: 2px 2px 5px #ddd;
+}
+
+.bg-grey {
+  background-color: #ccdcf3;
+}
+
+footer {
+  font-size: 0.8rem;
+}
+
+  .float-container {
+    border: 2px solid rgba(0, 0, 0, 0.2);
+    border-radius: 5px;
+    padding: 20px;
+}
+
+.float-child1 {
+  width: 75%;
+  float: left;
+  padding: 20px;
+  font-size: 20px;
+  font-weight: bold;
+} 
+
+.float-child2 {
+  width: 25%;
+  float: right;
+  padding: 20px;
+  font-size: 20px;
+  font-weight: bold;
+} 
+
+
