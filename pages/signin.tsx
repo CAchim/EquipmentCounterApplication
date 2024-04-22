@@ -199,16 +199,6 @@ const Signin = ({ csrfToken }: any) => {
                   >
                     Sign in
                   </button>
-                  <div className="flex justify-between items-center mb-6">
-                      <a
-                      href="#"
-                      onClick={() => {
-                      }}
-                      className="text-gray-800"
-                    >
-                      Forgot password?
-                    </a>
-                  </div>
                 </form>
               </div>
             </div>

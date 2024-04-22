@@ -16,7 +16,7 @@ export default NextAuth({
                 async authorize(credentials, req) {
 
                     try {
-                        const userFound = await queryDatabase(`select * from users where email='${
+                        const userFound = await queryDatabase(`select * from Users where email='${
                             credentials.email
                         }' and user_password='${
                             credentials.password
@@ -63,7 +63,7 @@ export default NextAuth({
             {session, token, user}
         ) {
 
-            const sqlQuery = `select * from users where email='${
+            const sqlQuery = `select * from Users where email='${
                 session.user.email
             }';`
             const userFound = await queryDatabase(sqlQuery)      
