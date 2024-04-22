@@ -17,13 +17,14 @@ export default async function handler(
     case 'removeUser':
       console.log('Client asks to remove an user')
       sqlCommand = `call removeUser("${reqJSON.user_id}");`
+      break 
+    
+    case 'changePassword':
+      console.log('Client asks to change the password')
+      sqlCommand = `call changePassword("${reqJSON.user_email}", "${reqJSON.user_password}", "${reqJSON.new_password}", "${reqJSON.password_confirmation}");`
       break
-    case 'findUser':
-      console.log('Client asks to find an user')
-      sqlCommand = `call findUser("${reqJSON.email}");`
-      break      
 
-    case 'sgetEmailsByUserGroup':
+    case 'getEmailsByUserGroup':
       console.log('Client asks to update owner email')
       sqlCommand = `call getEmailsByUserGroup("${reqJSON.user_group}");`
       break

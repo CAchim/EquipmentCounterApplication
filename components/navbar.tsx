@@ -80,7 +80,18 @@ const Navbar = () => {
                   </button>
                 </Link>
               </li>
-              ):null}                         
+              ):null} 
+              {/* @ts-ignore */}
+              {session?.user?.user_group =='admin' || session?.user?.user_group =='TDE' || session?.user?.user_group =='maintenance'? 
+              (
+              <li className="nav-item pt-3 pt-md-0">
+                <Link href="/changepassword" passHref={true}>                
+                  <button className="btn btn-primary fw-bold fs-5 scaleEffect me-5">
+                    Reset Password
+                  </button>
+                </Link>
+              </li>
+              ):null}
               <li className="nav-item pt-3 pt-md-0">
                 <Link href="" passHref={true}>
                   <button

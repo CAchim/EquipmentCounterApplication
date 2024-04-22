@@ -30,13 +30,7 @@ const AddTestProbes = (props: any) => {
       String(e.target.part_number6.value),
       parseInt(e.target.quantity6.value),
       String(e.target.part_number7.value),
-      parseInt(e.target.quantity7.value),
-      String(e.target.part_number8.value),
-      parseInt(e.target.quantity8.value),
-      String(e.target.part_number9.value),
-      parseInt(e.target.quantity9.value),
-      String(e.target.part_number10.value),
-      parseInt(e.target.quantity10.value)
+      parseInt(e.target.quantity7.value)
     )
       .then((result: any) => result.json())
       .then((resultJSON: any) => {
@@ -179,28 +173,7 @@ const AddTestProbes = (props: any) => {
                   className="form-control createProjectBarSize fw-bolder col mb-1"
                   placeholder="PN"
                   aria-label="Seventh PN"
-                ></input>
-                <input
-                  name="part_number8"
-                  type="text"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="PN"
-                  aria-label="Eigth PN"
-                ></input>    
-                <input
-                  name="part_number9"
-                  type="text"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="PN"
-                  aria-label="Nineth PN"
-                ></input> 
-                <input
-                  name="part_number10"
-                  type="text"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="PN"
-                  aria-label="Tenth PN"
-                ></input>             
+                ></input>            
             </div>
             <div className="float-child2 col mb-1">
               <div className="green">Quantity</div>
@@ -253,28 +226,7 @@ const AddTestProbes = (props: any) => {
                   className="form-control createProjectBarSize fw-bolder col mb-1"
                   placeholder="0"
                   aria-label="quantity7"
-                ></input>  
-                <input
-                  name="quantity8"
-                  type="number"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="0"
-                  aria-label="quantity8"
-                ></input>
-                <input
-                  name="quantity9"
-                  type="number"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="0"
-                  aria-label="quantity9"
-                ></input> 
-                <input
-                  name="quantity10"
-                  type="number"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="0"
-                  aria-label="quantity10"
-                ></input>            
+                ></input>             
               </div>
             </div>
             <button
@@ -310,12 +262,6 @@ const makeDatabaseAction = (
   quantity6Param: number,
   part_number7Param: string,
   quantity7Param: number,
-  part_number8Param: string,
-  quantity8Param: number,
-  part_number9Param: string,
-  quantity9Param: number,
-  part_number10Param: string,
-  quantity10Param: number,
 ) => {
   return new Promise((resolve, reject) => {
     fetch("/api/getCounterInfo", {
@@ -341,14 +287,7 @@ const makeDatabaseAction = (
         part_number6: part_number6Param, 
         quantity6: quantity6Param, 
         part_number7: part_number7Param, 
-        quantity7: quantity7Param, 
-        part_number8: part_number8Param, 
-        quantity8: quantity8Param, 
-        part_number9: part_number9Param, 
-        quantity9: quantity9Param, 
-        part_number10: part_number10Param, 
-        quantity10: quantity10Param,
-        
+        quantity7: quantity7Param,         
       }),
     })
       .then((result) => {

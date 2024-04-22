@@ -2,7 +2,7 @@ import { useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 
-const findUser = (props: any) => {
+const ChangePassword = (props: any) => {
   const { data: session, status } = useSession();
   const isMounted = useRef(false);
   const [connectionTimedOut, setConnectionTimedOut] = useState<any>(false);
@@ -11,10 +11,13 @@ const findUser = (props: any) => {
     e.preventDefault();
 
     const user: string = String(session?.user?.email || session?.user?.name);
-
     makeDatabaseAction(
-      "findUser",
-      String(e.target.user_id.value),
+      "changePassword",
+      user,
+      String(e.target.user_password.value),
+      String(e.target.new_password.value),
+      String(e.target.password_confirmation.value)
+
     )
       .then((result: any) => result.json())
       .then((resultJSON: any) => {
@@ -28,7 +31,7 @@ const findUser = (props: any) => {
 
           if (resultJSON.message.sqlMessage?.includes("constraint")) {
             resultJSON.message.sqlMessage =
-              "The specified user cannot be found!";
+              "The password was not changed!";
           }
           props.openModalAction({
             title: "Error!",
@@ -41,7 +44,7 @@ const findUser = (props: any) => {
           if (resultJSON.message.affectedRows === 1) {
             props.openModalAction({
               title: "Success!",
-              description: "User has been found!",
+              description: "The password has been changed successfully",
               pictureUrl: "/confirm_OK.svg",
               className: "text-center",
             });
@@ -90,29 +93,48 @@ const findUser = (props: any) => {
             onSubmit={handleInsertButton}
           >
             <input
-              name="user_id"
+              name="user_password"
               type="text"
               className="form-control createProjectBarSize fw-bolder col mb-3"
-              placeholder="User ID"
-              aria-label="User ID"
+              placeholder="Old Password"
+              aria-label="Old Password"
+              required
+            ></input>
+            <input
+              name="new_password"
+              type="text"
+              className="form-control createProjectBarSize fw-bolder col mb-3"
+              placeholder="New Password"
+              aria-label="New Password"
+              required
+            ></input>
+            <input
+              name="password_confirmation"
+              type="text"
+              className="form-control createProjectBarSize fw-bolder col mb-3"
+              placeholder="Confirm New Password"
+              aria-label="Confirm New Password"
               required
             ></input>
             <button
               type="submit"
               className="btn btn-primary fs-4 fw-bold text-nowrap col mb-3 scaleEffect"
             >
-              Remove
+              Change Password
             </button>
           </form>
         </div>
       </>
     );
 };
-export default findUser;
+export default ChangePassword;
 
 const makeDatabaseAction = (
   actionParam: string,
-  user_idParam: string,
+  user_emailParam: string,
+  user_passwordParam : string,
+  new_passwordParam : string,
+  password_confirmationParam : string,
 ) => {
   return new Promise((resolve, reject) => {
     fetch("/api/getUsers", {
@@ -122,7 +144,10 @@ const makeDatabaseAction = (
       credentials: "omit",
       body: JSON.stringify({
         action: actionParam,
-        user_id: user_idParam,
+        user_email: user_emailParam,
+        user_password: user_passwordParam,
+        new_password: new_passwordParam,
+        password_confirmation: password_confirmationParam,
       }),
     })
       .then((result) => {

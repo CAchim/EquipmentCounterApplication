@@ -45,7 +45,7 @@ export default async function handler(
       break
     case 'concatenateNails':
       console.log('Client asks to add testprobes to a project')
-      sqlCommand = `call concatenateNails( "${reqJSON.adapter_code}", "${reqJSON.fixture_type}", "${reqJSON.modified_by}", "${reqJSON.part_number1}", ${reqJSON.quantity1}, "${reqJSON.part_number2}", ${reqJSON.quantity2}, "${reqJSON.part_number3}", ${reqJSON.quantity3}, "${reqJSON.part_number4}", ${reqJSON.quantity4}, "${reqJSON.part_number5}", ${reqJSON.quantity5}, "${reqJSON.part_number6}", ${reqJSON.quantity6}, "${reqJSON.part_number7}", ${reqJSON.quantity7}, "${reqJSON.part_number8}", ${reqJSON.quantity8}, "${reqJSON.part_number9}", ${reqJSON.quantity9}, "${reqJSON.part_number10}", ${reqJSON.quantity10});`
+      sqlCommand = `call concatenateNails( "${reqJSON.adapter_code}", "${reqJSON.fixture_type}", "${reqJSON.modified_by}", "${reqJSON.part_number1}", ${reqJSON.quantity1}, "${reqJSON.part_number2}", ${reqJSON.quantity2}, "${reqJSON.part_number3}", ${reqJSON.quantity3}, "${reqJSON.part_number4}", ${reqJSON.quantity4}, "${reqJSON.part_number5}", ${reqJSON.quantity5}, "${reqJSON.part_number6}", ${reqJSON.quantity6}, "${reqJSON.part_number7}", ${reqJSON.quantity7});`
       break
     case 'removeTPs':
       console.log('Client asks to remove some test probes')

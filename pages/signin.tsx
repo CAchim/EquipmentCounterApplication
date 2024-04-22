@@ -8,15 +8,11 @@ import Head from 'next/head'
 import { useState } from 'react'
 import confirmNOK from '../public/undraw_cancel_u-1-it.svg'
 import React from "react"
-import ForgotPassword from '../components/forgotPassword'
-import { useNavigate } from "react-router-dom"
-
 
 const Signin = ({ csrfToken }: any) => {
   const { data: session } = useSession()
   const modalElement = useRef(null)
   const closeModalBtn = useRef(null)
-  const navigate = useNavigate()
   const router = useRouter()
   const parentModalElement = useRef(null)
   const [modalProps, setModalProps] = useState<ModalProps>({
@@ -117,90 +113,6 @@ const Signin = ({ csrfToken }: any) => {
       })
   }
 
-  const forgotPassword = () => {
-    return (
-      <>
-        <Head>
-          <title>Recover Password</title>
-        </Head>
-        <Image
-          src={confirmNOK}
-          className=""
-          width={10}
-          height={10}
-          priority
-          alt="confirmation NOK"
-        />
-        <div className="screen-100 paddingTopBottom d-flex flex-column justify-content-center container">
-          <div className="d-flex flex-column justify-content-evenly">
-            <div className="d-flex flex-column flex-md-row justify-content-between align-content-center position-relative">
-              <Image
-                src="/undraw_authentication_fsn5.svg"
-                width={620}
-                height={500}
-                priority
-                alt="sign in image"
-                className="m-auto img-fluid"
-              ></Image>
-
-              <div className="d-flex align-items-center justify-content-center">
-                <form
-                  onSubmit={submitSignin}
-                  className="d-flex flex-column align-items-center mt-3"
-                  method="post"
-                >
-                  <input
-                    name="csrfToken"
-                    type="hidden"
-                    defaultValue={csrfToken}
-                  />
-                  <input
-                    name="email"
-                    type="email"
-                    className="form-control fs-1 mb-4"
-                    placeholder="Email"
-                    aria-label="Email"
-                    required
-                  ></input>                  
-                  <button
-                    type="submit"
-                    className="btn btn-primary fw-bold fs-2 scaleEffect"
-                  >
-                    Reset Password
-                  </button>
-                </form>
-              </div>
-            </div>
-          </div>
-          {signinError && (
-            <div className="d-none" ref={parentModalElement}>
-              <div className="position-fixed start-50 top-50 translate-middle w-100 h-100 pt-5 blurBg">
-                <div
-                  className="animate__animated d-none rounded-pill mx-auto p-5 d-flex flex-column justify-content-center w-50 paddingModal"
-                  ref={modalElement}
-                >
-                  <Modal
-                    title={modalProps.title}
-                    description={modalProps.description}
-                    pictureUrl={modalProps.pictureUrl}
-                    className={modalProps.className}
-                  />
-                  <button
-                    ref={closeModalBtn}
-                    className="btn btn-primary fs-3 m-auto fw-bold scaleEffect"
-                    onClick={closeModal}
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </>
-    )
-  }
-
   if (session) {
     try {
       router.push('/editprojects')
@@ -291,7 +203,6 @@ const Signin = ({ csrfToken }: any) => {
                       <a
                       href="#"
                       onClick={() => {
-                        navigate
                       }}
                       className="text-gray-800"
                     >
