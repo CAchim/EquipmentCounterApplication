@@ -87,7 +87,7 @@ const Navbar = () => {
               <li className="nav-item pt-3 pt-md-0">
                 <Link href="/changepassword" passHref={true}>                
                   <button className="btn btn-primary fw-bold fs-5 scaleEffect me-5">
-                    Reset Password
+                    Change Password
                   </button>
                 </Link>
               </li>
