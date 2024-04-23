@@ -18,7 +18,7 @@ export default NextAuth({
                     try {
                         const userFound = await queryDatabase(`select * from Users where email like binary '${
                             credentials.email
-                        }' and user_password like binary'${
+                        }' and user_password like binary '${
                             credentials.password
                         }';`)
 
