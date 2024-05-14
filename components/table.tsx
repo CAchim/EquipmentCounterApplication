@@ -552,7 +552,9 @@ const ProjectsTable = (props: any) => {
                             ></Image>
                         </button>
                         ):null}
-                        {EditModeForAllEntries &&
+                        {/* @ts-ignore */}
+                        {session?.user?.user_group =='admin' || session?.user?.user_group =='TDE'? 
+                        (EditModeForAllEntries &&
                         !EditModeForAllEntries[counterInfoDB.indexOf(Project)]
                         ?.editMode ? (  
                           <button
@@ -592,7 +594,7 @@ const ProjectsTable = (props: any) => {
                               priority
                             ></Image>
                           </button>                          
-                        )} 
+                        )):null} 
                       </td>
                     ) : null}
 
