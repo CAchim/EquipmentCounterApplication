@@ -5,8 +5,8 @@ import { useSession, signOut } from "next-auth/react";
 
 const Navbar = () => {
   const { data: session } = useSession();
-  const pictureWidth = 190;
-  const pictureHeight = 50;
+  const pictureWidth = 250;
+  const pictureHeight = 75;
   return (
     <nav className="" role="navigation">
       <div className="container d-flex justify-content-around align-items-center">
@@ -54,7 +54,7 @@ const Navbar = () => {
               <li className="nav-item pt-3 pt-md-0">
                 <Link href="/createproject" passHref={true}>                
                   <button className="btn btn-primary fw-bold fs-5 scaleEffect me-5">
-                    Create project
+                    Add Equipment
                   </button>
                 </Link>
               </li>
