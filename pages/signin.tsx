@@ -1,239 +1,196 @@
-import { useSession, getCsrfToken, signIn } from 'next-auth/react'
-import Layout from '../components/layout'
-import Image from 'next/image'
-import Modal, { ModalProps } from '../components/modal'
-import { useRouter } from 'next/router'
-import { useRef } from 'react'
-import Head from 'next/head'
-import { useState } from 'react'
-import confirmNOK from '../public/undraw_cancel_u-1-it.svg'
-import React from "react"
+import { getProviders, signIn } from "next-auth/react";
+import { useState, useEffect } from "react";
+import Image from "next/image";
+import Head from "next/head";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/router";
+import styles from "../styles/Signin.module.scss";
 
-const Signin = ({ csrfToken }: any) => {
-  const { data: session } = useSession()
-  const modalElement = useRef(null)
-  const closeModalBtn = useRef(null)
-  const router = useRouter()
-  const parentModalElement = useRef(null)
-  const [modalProps, setModalProps] = useState<ModalProps>({
-    title: '',
-    description: '',
-    pictureUrl: confirmNOK,
-    className: '',
-  })
-  const [signinError, setSigninError] = useState(false)
-  const [loading, setLoading] = useState(false)
-  
-  const closeModal = () => {
-    if (modalElement.current && parentModalElement.current) {
-      // @ts-ignore: Object is possibly 'null'.
-      modalElement.current.classList.remove('animate__bounceIn')
+export default function SignInNew({ providers }: any) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
-      // @ts-ignore: Object is possibly 'null'.
-      modalElement.current.classList.add('animate__bounceOut')
-      setTimeout(() => {
-        if (modalElement.current && parentModalElement.current) {
-          // @ts-ignore: Object is possibly 'null'.
-          modalElement.current.classList.add('d-none')
-          // @ts-ignore: Object is possibly 'null'.
-          parentModalElement.current.classList.add('d-none')
-        }
-      }, 650)
+  // 👁 Password visibility state
+  const [showPassword, setShowPassword] = useState(false);
+
+  const { data: session } = useSession();
+  const router = useRouter();
+
+  // 🔹 Auto-redirect if session exists
+  useEffect(() => {
+    if (session) router.push("/");
+  }, [session, router]);
+
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrorMessage("");
+
+    const result = await signIn("credentials", {
+      email,
+      password,
+      redirect: false, // 🔹 Prevent automatic redirect
+    });
+
+    if (result?.error) {
+      setErrorMessage("Invalid email or password. Please try again.");
+    } else {
+      window.location.href = "/"; // 🔹 Redirect manually if successful
     }
-    router.push('/signin')
-  }
 
-  const openModal = (parameters: ModalProps) => {
-    if (modalElement.current && parentModalElement.current) {
-      if (parameters.title === 'Error!') {
-        // @ts-ignore: Object is possibly 'null'.
-        modalElement.current.classList.remove(
-          'bg-danger',
-          'bg-success',
-          'bg-warning',
-        )
-        // @ts-ignore: Object is possibly 'null'.
-        modalElement.current.classList.add('bg-danger')
-      } else if (parameters.title === 'Success!') {
-        // @ts-ignore: Object is possibly 'null'.
-        modalElement.current.classList.remove(
-          'bg-danger',
-          'bg-success',
-          'bg-warning',
-        )
-        // @ts-ignore: Object is possibly 'null'.
-        modalElement.current.classList.add('bg-success')
-      }
+    setLoading(false);
+  };
 
-      // @ts-ignore: Object is possibly 'null'.
-      parentModalElement.current.classList.remove('d-none')
-      // @ts-ignore: Object is possibly 'null'.
-      modalElement.current.classList.remove('animate__bounceOut', 'd-none')
+  return (
+    <>
+      <Head>
+        <title>AUMOVIO | Sign In</title>
+      </Head>
 
-      // @ts-ignore: Object is possibly 'null'.
-      modalElement.current.classList.add('animate__bounceIn')
-    }
-    setModalProps(parameters)
-    // @ts-ignore: Object is possibly 'null'.
-    closeModalBtn.current.focus()
-  }
-
-
-  const submitSignin = (e: any) => {
-    e.preventDefault()
-
-    signIn('credentials', {
-      redirect: false,
-      email: e.target.email.value.toString(),
-      password: e.target.password.value.toString(),
-    })
-      .then((res: any) => {
-        if (res?.error === 'Invalid account') {
-          setSigninError(true)
-          openModal({
-            title: 'Error!',
-            description: 'Invalid account!',
-            pictureUrl: confirmNOK,
-            className: 'text-center',
-          })
-        } else {
-          setSigninError(false)
-        }
-      })
-      .catch((err) => {
-        setSigninError(true)
-        console.log(err)
-        openModal({
-          title: 'Error!',
-          description:
-            'Something went wrong, please contact your administrator!',
-          pictureUrl: confirmNOK,
-          className: 'text-center',
-        })
-      })
-  }
-
-  if (session) {
-    try {
-      router.push('/editprojects')
-    } catch (err) {}
-    return null
-  } else if (loading) {
-    return (
-      <>
-        <Head>
-          <title>Loading...</title>
-        </Head>
-        <div className="d-flex flex-column align-items-center justify-content-center screen-100 paddingTopBottom">
-          <div className="d-flex justify-content-center">
-            <div
-              className="spinner-grow text-primary"
-              style={{ width: '10rem', height: '10rem' }}
-              role="status"
-            >
-              <span className=""></span>
-            </div>
+      {/* 🔹 Top Notification */}
+      {errorMessage && (
+        <div className={styles.topError}>
+          <div className={styles.errorContent}>
+            <Image
+              src="/wrong_password.svg"
+              alt="Error"
+              width={24}
+              height={24}
+              className={styles.errorIcon}
+            />
+            <p>{errorMessage}</p>
           </div>
-          <div className="d-flex justify-content-center p-5">
-            <p className="text-white display-5">Signin in...</p>
-          </div>
+          <button
+            className={styles.closeBtn}
+            onClick={() => setErrorMessage("")}
+          >
+            ×
+          </button>
         </div>
-      </>
-    )
-  } else
-    return (
-      <>
-        <Head>
-          <title>Signin</title>
-        </Head>
-        <Image
-          src={confirmNOK}
-          className=""
-          width={10}
-          height={10}
-          priority
-          alt="confirmation NOK"
-        />
-        <div className="screen-100 paddingTopBottom d-flex flex-column justify-content-center container">
-          <div className="d-flex flex-column justify-content-evenly">
-            <div className="d-flex flex-column flex-md-row justify-content-between align-content-center position-relative">
-              <Image
-                src="/undraw_authentication_fsn5.svg"
-                width={620}
-                height={500}
-                priority
-                alt="sign in image"
-                className="m-auto img-fluid"
-              ></Image>
+      )}
 
-              <div className="d-flex align-items-center justify-content-center">
-                <form
-                  onSubmit={submitSignin}
-                  className="d-flex flex-column align-items-center mt-3"
-                  method="post"
-                >
-                  <input
-                    name="csrfToken"
-                    type="hidden"
-                    defaultValue={csrfToken}
-                  />
-                  <input
-                    name="email"
-                    type="email"
-                    className="form-control fs-1 mb-4"
-                    placeholder="Email"
-                    aria-label="Email"
-                    required
-                  ></input>
-                  <input
-                    name="password"
-                    type="password"
-                    className="form-control fs-1 mb-4"
-                    placeholder="Password"
-                    aria-label="Password"
-                    required
-                  ></input>
-                  <button
-                    type="submit"
-                    className="btn btn-primary fw-bold fs-2 scaleEffect"
-                  >
-                    Sign in
-                  </button>
-                </form>
-              </div>
-            </div>
+      <div className={styles.container}>
+        <div className={styles.card}>
+          {/* Left illustration */}
+          <div className={styles.illustration}>
+            <Image
+              src="/undraw_authentication_fsn5.svg"
+              alt="Authentication"
+              width={300}
+              height={300}
+              priority
+            />
           </div>
-          {signinError && (
-            <div className="d-none" ref={parentModalElement}>
-              <div className="position-fixed start-50 top-50 translate-middle w-100 h-100 pt-5 blurBg">
-                <div
-                  className="animate__animated d-none rounded-pill mx-auto p-5 d-flex flex-column justify-content-center w-50 paddingModal"
-                  ref={modalElement}
-                >
-                  <Modal
-                    title={modalProps.title}
-                    description={modalProps.description}
-                    pictureUrl={modalProps.pictureUrl}
-                    className={modalProps.className}
+
+          {/* Sign-in form */}
+          <div className={styles.formSection}>
+            <h2 className={styles.title}>Welcome Back!</h2>
+
+            <form onSubmit={handleSignIn} className={styles.form}>
+              {/* Email field */}
+              <div className="mb-3">
+                <label htmlFor="email" className={styles.label}>
+                  Email or User ID
+                </label>
+                <input
+                  type="text"
+                  id="identifier"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={styles.input}
+                  placeholder="Enter your email or user ID"
+                  required
+                />
+              </div>
+
+              {/* Password field with eye icon */}
+              <div className="mb-3">
+                <label className={styles.label}>Password</label>
+
+                <div className={styles.passwordWrapper}>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className={`${styles.input} ${styles.passwordInput}`}
+                    placeholder="Enter your password"
+                    required
                   />
+
                   <button
-                    ref={closeModalBtn}
-                    className="btn btn-primary fs-3 m-auto fw-bold scaleEffect"
-                    onClick={closeModal}
+                    type="button"
+                    className={styles.eyeButton}
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    tabIndex={-1}
                   >
-                    Close
+                    <Image
+                      src={showPassword ? "/eye-slash.svg" : "/eye.svg"}
+                      alt={showPassword ? "Hide password" : "Show password"}
+                      width={22}
+                      height={22}
+                    />
                   </button>
                 </div>
               </div>
+
+              {/* Options */}
+              <div className={styles.options}>
+                <div className={styles.checkboxWrapper}>
+                  <input type="checkbox" id="remember" />
+                  <label htmlFor="remember">Remember me</label>
+                </div>
+                <Link href="/forgot-password" className={styles.forgot}>
+                  Forgot password?
+                </Link>
+              </div>
+
+              <button
+                type="submit"
+                className={styles.signinBtn}
+                disabled={loading}
+              >
+                {loading ? "Signing in..." : "Sign In"}
+              </button>
+            </form>
+
+            {/* Back to Home button */}
+            <div className="text-center mt-3">
+              <Link href="/" className={styles.backHomeBtn}>
+                ⬅ Back to Home
+              </Link>
             </div>
-          )}
+
+            {/* Divider */}
+            {/*<div className={styles.divider}>
+              <span>or continue with</span>
+            </div>*/} 
+
+            {/* OAuth providers */}
+            <div className={styles.providers}>
+              {Object.values(providers).map((provider: any) => {
+                if (provider.name === "Credentials") return null;
+                return (
+                  <button
+                    key={provider.name}
+                    onClick={() => signIn(provider.id)}
+                    className={styles.providerBtn}
+                  >
+                    Sign in with {provider.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
-      </>
-    )
+      </div>
+    </>
+  );
 }
 
-export default Signin
-
-Signin.getLayout = function getLayout(page: any) {
-  return <Layout>{page}</Layout>
+export async function getServerSideProps() {
+  const providers = await getProviders();
+  return { props: { providers } };
 }

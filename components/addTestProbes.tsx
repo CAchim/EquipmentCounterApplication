@@ -1,300 +1,463 @@
 import { useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { Tooltip } from "react-tooltip";
 
-const AddTestProbes = (props: any) => {
-  const { data: session, status } = useSession();
-  const isMounted = useRef(false);
-  const [connectionTimedOut, setConnectionTimedOut] = useState<any>(false);
+interface AddTestProbesProps {
+  openModalAction: Function;
+}
 
-  const handleInsertButton = (e: any) => {
-    e.preventDefault();
+interface TestProbe {
+  part_number: string;
+  quantity: number;
+  editing?: boolean;
+}
 
-    const user: string = String(session?.user?.email || session?.user?.name);
+const AddTestProbes = ({ openModalAction }: AddTestProbesProps) => {
+  const { data: session } = useSession();
+  const adapterCodeRef = useRef<HTMLInputElement>(null);
+  const fixtureTypeRef = useRef<HTMLInputElement>(null);
+  const partNumberRef = useRef<HTMLInputElement>(null);
+  const quantityRef = useRef<HTMLInputElement>(null);
+  const MAX_PROBES = 10;
 
-    makeDatabaseAction(
-      "concatenateNails",
-      String(e.target.adapter_code.value),
-      String(e.target.fixture_type.value),
-      user,
-      String(e.target.part_number1.value),
-      parseInt(e.target.quantity1.value),
-      String(e.target.part_number2.value),
-      parseInt(e.target.quantity2.value),
-      String(e.target.part_number3.value),
-      parseInt(e.target.quantity3.value),
-      String(e.target.part_number4.value),
-      parseInt(e.target.quantity4.value),
-      String(e.target.part_number5.value),
-      parseInt(e.target.quantity5.value),
-      String(e.target.part_number6.value),
-      parseInt(e.target.quantity6.value),
-      String(e.target.part_number7.value),
-      parseInt(e.target.quantity7.value)
-    )
-      .then((result: any) => result.json())
-      .then((resultJSON: any) => {
-        console.log(resultJSON.message);
-        if (resultJSON.status === 500) {
-          if (
-            resultJSON.message.code === "ER_ACCESS_DENIED_ERROR" ||
-            resultJSON.message.code === "ECONNREFUSED"
-          )
-            throw "Cannot connect to DB";
+  const [testProbes, setTestProbes] = useState<TestProbe[]>([]);
+  const [showProbeList, setShowProbeList] = useState(false);
 
-          if (resultJSON.message.sqlMessage?.includes("constraint")) {
-            resultJSON.message.sqlMessage =
-              "The specified PN already exists!";
-          }
-          props.openModalAction({
-            title: "Error!",
-            description: resultJSON.message.sqlMessage,
-            pictureUrl: "/undraw_cancel_u-1-it.svg",
-            className: "text-center",
-          });
-        } else if (resultJSON.status === 200) {
-          console.log(resultJSON);
-          if (resultJSON.message.affectedRows === 1) {
-            props.openModalAction({
-              title: "Success!",
-              description: "Test probes have been successfully addeded!",
-              pictureUrl: "/confirm_OK.svg",
-              className: "text-center",
-            });
-            e.target.reset();
-          }
-        }
-      })
-      .catch((err) => {
-        console.log(err);
-        if (isMounted.current === true) setConnectionTimedOut(true);
-      });
-  };
+  const isAdmin = session?.user?.user_group === "admin";
+
+  // Plant-related state (admin-only combobox)
+  const [plants, setPlants] = useState<string[]>([]);
+  const [fixturePlant, setFixturePlant] = useState<string>("");
+  const [plantSearch, setPlantSearch] = useState<string>("");
+  const [isDropdownOpen, setDropdownOpen] = useState(false);
+
+  // Ref for click-outside handling
+  const plantDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  // Load plants for admin (same pattern as AddNewProject / EditTPs)
   useEffect(() => {
-    isMounted.current = true;
+    if (isAdmin) {
+      fetch("/api/getPlants")
+        .then((r) => r.json())
+        .then((arr) => {
+          const list = Array.isArray(arr)
+            ? arr.map((p: any) => p.plant_name).filter(Boolean)
+            : [];
+          setPlants(list);
+        })
+        .catch(() => {
+          // ignore; any error will show in downstream behavior if relevant
+        });
+    }
+  }, [isAdmin]);
 
-    return () => {
-      isMounted.current = false;
+  // Keep the search box aligned with selected plant
+  useEffect(() => {
+    setPlantSearch(fixturePlant || "");
+  }, [fixturePlant]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        plantDropdownRef.current &&
+        !plantDropdownRef.current.contains(event.target as Node)
+      ) {
+        setDropdownOpen(false);
+      }
     };
-  }, []);
 
-  if (connectionTimedOut) {
-    return (
-      <>
-        <div className="d-flex flex-column align-items-center justify-content-center screen-80 ">
-          <Image
-            src="/undraw_questions_re_1fy7.svg"
-            height={250}
-            width={800}
-            alt="Error Picture"
-            priority
-            className="animate__animated animate__bounceIn"
-          ></Image>
-          <p className="text-danger display-3 text-center p-5">
-            Database did not respond, please contact your administrator!
-          </p>
-        </div>
-      </>
-    );
-  } else
-    return (
-      <>
-        <div className="container text-center createProjectBarWidth mt-3">
-          <form
-            className="d-flex flex-column justify-content-center align-items-center"
-            method="post"
-            onSubmit={handleInsertButton}
-          >
-            <input
-              name="adapter_code"
-              type="text"
-              className="form-control createProjectBarSize fw-bolder col mb-3"
-              placeholder="Adapter code"
-              aria-label="Adapter code"
-              required
-            ></input>
-            <input
-              name="fixture_type"
-              type="text"
-              className="form-control createProjectBarSize fw-bolder col mb-3"
-              placeholder="Fixture type"
-              aria-label="Fixture type"
-              required
-            ></input>
-            <div className="float-container col mb-3">
-              <div className="float-child1 col mb-1">
-                <div className="green">Part number</div>
-                <input
-                  name="part_number1"
-                  type="text"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="PN"
-                  aria-label="First PN"
-                  required
-                ></input>
-                <input
-                  name="part_number2"
-                  type="text"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="PN"
-                  aria-label="Second PN"
-                ></input>
-                <input
-                  name="part_number3"
-                  type="text"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="PN"
-                  aria-label="Third PN"
-                ></input>
-                <input
-                  name="part_number4"
-                  type="text"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="PN"
-                  aria-label="Fourth PN"
-                ></input>
-                <input
-                  name="part_number5"
-                  type="text"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="PN"
-                  aria-label="Fifth PN"
-                ></input>
-                <input
-                  name="part_number6"
-                  type="text"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="PN"
-                  aria-label="Sixth PN"
-                ></input>
-                <input
-                  name="part_number7"
-                  type="text"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="PN"
-                  aria-label="Seventh PN"
-                ></input>            
-            </div>
-            <div className="float-child2 col mb-1">
-              <div className="green">Quantity</div>
-                <input
-                  name="quantity1"
-                  type="number"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="0"
-                  aria-label="quantity1"
-                  required
-                ></input>
-                <input
-                  name="quantity2"
-                  type="number"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="0"
-                  aria-label="quantity2"
-                ></input>
-                <input
-                  name="quantity3"
-                  type="number"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="0"
-                  aria-label="quantity3"
-                ></input>
-                <input
-                  name="quantity4"
-                  type="number"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="0"
-                  aria-label="quantity4"
-                ></input>
-                <input
-                  name="quantity5"
-                  type="number"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="0"
-                  aria-label="quantity5"
-                ></input>
-                <input
-                  name="quantity6"
-                  type="number"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="0"
-                  aria-label="quantity6"
-                ></input>
-                <input
-                  name="quantity7"
-                  type="number"
-                  className="form-control createProjectBarSize fw-bolder col mb-1"
-                  placeholder="0"
-                  aria-label="quantity7"
-                ></input>             
-              </div>
-            </div>
-            <button
-              type="submit"
-              className="btn btn-primary fs-4 fw-bold text-nowrap col mb-3 scaleEffect"
-            >
-              Add
-            </button>
-          </form>
-        </div>
-        
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isDropdownOpen]);
 
-      </>
-    );
-};
-export default AddTestProbes; 
-const makeDatabaseAction = (
-  actionParam: string,
-  adapter_codeParam: string,
-  fixture_typeParam: string,
-  modified_byParam: string,
-  part_number1Param: string,
-  quantity1Param: number,
-  part_number2Param: string,
-  quantity2Param: number,
-  part_number3Param: string,
-  quantity3Param: number,
-  part_number4Param: string,
-  quantity4Param: number,
-  part_number5Param: string,
-  quantity5Param: number,
-  part_number6Param: string,
-  quantity6Param: number,
-  part_number7Param: string,
-  quantity7Param: number,
-) => {
-  return new Promise((resolve, reject) => {
-    fetch("/api/getCounterInfo", {
-      method: "POST",
-      mode: "cors",
-      cache: "no-cache",
-      credentials: "omit",
-      body: JSON.stringify({
-        action: actionParam,
-        adapter_code: adapter_codeParam,
-        fixture_type: fixture_typeParam,
-        modified_by: modified_byParam,
-        part_number1: part_number1Param, 
-        quantity1: quantity1Param, 
-        part_number2: part_number2Param, 
-        quantity2: quantity2Param, 
-        part_number3: part_number3Param, 
-        quantity3: quantity3Param, 
-        part_number4: part_number4Param, 
-        quantity4: quantity4Param, 
-        part_number5: part_number5Param, 
-        quantity5: quantity5Param, 
-        part_number6: part_number6Param, 
-        quantity6: quantity6Param, 
-        part_number7: part_number7Param, 
-        quantity7: quantity7Param,         
-      }),
-    })
-      .then((result) => {
-        resolve(result);
-      })
-      .catch((err) => {
-        reject(err);
+  const filteredPlants = plants.filter((p) =>
+    p.toLowerCase().includes(plantSearch.toLowerCase())
+  );
+
+  const requirePlantIfAdmin = (): boolean => {
+    if (isAdmin && !fixturePlant.trim()) {
+      openModalAction({
+        title: "Error!",
+        description: "Please select a Fixture plant location first.",
+        pictureUrl: "/undraw_cancel_u-1-it.svg",
+        className: "text-center",
       });
-  });
+      return false;
+    }
+    return true;
+  };
+
+  const handleAddTestProbe = () => {
+    const part_number = partNumberRef.current?.value.trim() || "";
+    const quantity = parseInt(quantityRef.current?.value.trim() || "0");
+
+    if (testProbes.length >= MAX_PROBES) {
+      openModalAction({
+        title: "Limit Reached",
+        description: `You can add up to ${MAX_PROBES} test probes only.`,
+        pictureUrl: "/undraw_cancel_u-1-it.svg",
+        className: "text-center",
+      });
+      return;
+    }
+
+    if (!part_number || isNaN(quantity) || quantity <= 0) {
+      openModalAction({
+        title: "Error!",
+        description: "Please enter a valid part number and quantity!",
+        pictureUrl: "/undraw_cancel_u-1-it.svg",
+        className: "text-center",
+      });
+      return;
+    }
+
+    const exists = testProbes.some((tp) => tp.part_number === part_number);
+    if (exists) {
+      openModalAction({
+        title: "Error!",
+        description: "This part number is already in the list!",
+        pictureUrl: "/undraw_cancel_u-1-it.svg",
+        className: "text-center",
+      });
+      return;
+    }
+
+    setTestProbes((prev) => [...prev, { part_number, quantity }]);
+    setShowProbeList(true);
+    if (partNumberRef.current) partNumberRef.current.value = "";
+    if (quantityRef.current) quantityRef.current.value = "";
+  };
+
+  const handleRemoveOne = (index: number) => {
+    const updated = [...testProbes];
+    updated.splice(index, 1);
+    setTestProbes(updated);
+    if (updated.length === 0) setShowProbeList(false);
+  };
+
+  const toggleEdit = (index: number) => {
+    const updated = [...testProbes];
+    updated[index].editing = true;
+    setTestProbes(updated);
+  };
+
+  const handleSave = (index: number, newPN: string, newQty: number) => {
+    const updated = [...testProbes];
+    updated[index] = {
+      part_number: newPN.trim(),
+      quantity: newQty,
+      editing: false,
+    };
+    setTestProbes(updated);
+  };
+
+  const handleSubmitAll = async () => {
+    const adapter_code = adapterCodeRef.current?.value.trim();
+    const fixture_type = fixtureTypeRef.current?.value.trim();
+
+    if (!adapter_code || !fixture_type) {
+      alert("Please enter both Adapter Code and Fixture Type.");
+      return;
+    }
+
+    if (!requirePlantIfAdmin()) return;
+
+    if (testProbes.length === 0) {
+      alert("No test probes to submit.");
+      return;
+    }
+
+    const preparedProbes = testProbes.filter(
+      (probe) => probe.part_number?.trim() && !isNaN(probe.quantity)
+    );
+
+    if (preparedProbes.length !== testProbes.length) {
+      alert("Each test probe must have a valid part number and quantity.");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/addTPs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adapter_code,
+          fixture_type,
+          fixture_plant: fixturePlant.trim() || undefined,
+          modified_by:
+            session?.user?.email || session?.user?.name || "ROOT",
+          testProbes: preparedProbes,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        openModalAction({
+          title: "Error!",
+          description:
+            typeof data?.message === "string"
+              ? data.message
+              : "Failed to add test probes.",
+          pictureUrl: "/undraw_cancel_u-1-it.svg",
+          className: "text-center",
+        });
+        return;
+      }
+
+      openModalAction({
+        title: "Success!",
+        description:
+          typeof data?.message === "string"
+            ? data.message
+            : "All test probes added successfully.",
+        pictureUrl: "/confirm_OK.svg",
+        className: "text-center",
+      });
+
+      setTestProbes([]);
+      setShowProbeList(false);
+    } catch (error: any) {
+      openModalAction({
+        title: "Error!",
+        description: error?.message || "Internal Server Error.",
+        pictureUrl: "/undraw_cancel_u-1-it.svg",
+        className: "text-center",
+      });
+    }
+  };
+
+  return (
+    <div className="container mt-2 text-center">
+      <form className="d-flex flex-column align-items-center">
+        <div className="input-section">
+          <input
+            ref={adapterCodeRef}
+            type="text"
+            placeholder="Adapter Code"
+            className="form-control input-fields fw-bold"
+            required
+          />
+          <input
+            ref={fixtureTypeRef}
+            type="text"
+            placeholder="Fixture Type"
+            className="form-control input-fields fw-bold"
+            required
+          />
+
+          {/* Admin-only plant combobox (same style as EditTPs) */}
+          {isAdmin && (
+            <div
+              className="dropdown dropup w-100 mb-2"
+              ref={plantDropdownRef}
+            >
+              <input
+                type="text"
+                className="form-control input-fields fw-bolder col dropdown-toggle"
+                id="plantDropdown"
+                placeholder="Fixture plant location"
+                value={plantSearch}
+                onFocus={() => setDropdownOpen(true)}
+                onClick={() => setDropdownOpen(true)} // only open, no toggle
+                onChange={(e) => {
+                  setPlantSearch(e.target.value);
+                  setDropdownOpen(true);
+                }}
+                autoComplete="off"
+              />
+
+              {isDropdownOpen && (
+                <ul
+                  className="dropdown-menu custom-dropdown w-100 plant-dropdown show"
+                  aria-labelledby="plantDropdown"
+                  style={{ maxHeight: "200px", overflowY: "auto" }}
+                >
+                  <li>
+                    <button
+                      type="button"
+                      className="dropdown-item text-danger"
+                      onClick={() => {
+                        setFixturePlant("");
+                        setPlantSearch("");
+                        setDropdownOpen(false);
+                      }}
+                    >
+                      Clear Selection
+                    </button>
+                  </li>
+                  <li>
+                    <hr className="dropdown-divider" />
+                  </li>
+
+                  {filteredPlants.length === 0 && (
+                    <li className="dropdown-item disabled text-muted">
+                      No plants found
+                    </li>
+                  )}
+
+                  {filteredPlants.map((p, idx) => (
+                    <li key={idx}>
+                      <button
+                        type="button"
+                        className="dropdown-item"
+                        onClick={() => {
+                          setFixturePlant(p);
+                          setDropdownOpen(false);
+                        }}
+                      >
+                        {p}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="d-flex gap-2 mb-2 w-100 justify-content-center">
+          <input
+            ref={partNumberRef}
+            type="text"
+            placeholder="Part Number"
+            className="form-control test-probe-input-list test-probe-text"
+          />
+          <input
+            ref={quantityRef}
+            type="number"
+            min={1}
+            placeholder="Qty"
+            className="form-control qty-input-list test-probe-text"
+          />
+        </div>
+        <button
+          type="button"
+          className="btn btn-secondary fw-bold scaleEffect"
+          onClick={handleAddTestProbe}
+        >
+          Add
+        </button>
+        <p className="text-muted mt-1 probe-limit-text">
+          {testProbes.length}/{MAX_PROBES} probes added
+        </p>
+      </form>
+
+      {showProbeList && (
+        <div className="container">
+          <ul className="list-group add-test-probe-list mx-auto">
+            {testProbes.map((probe, idx) => (
+              <li
+                key={idx}
+                className="list-group-item d-flex justify-content-between align-items-center gap-2"
+              >
+                {probe.editing ? (
+                  <>
+                    <input
+                      type="text"
+                      defaultValue={probe.part_number}
+                      className="form-control w-50"
+                      onChange={(e) => (probe.part_number = e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      defaultValue={probe.quantity}
+                      className="form-control w-25"
+                      onChange={(e) =>
+                        (probe.quantity = parseInt(e.target.value, 10))
+                      }
+                    />
+                    <div className="d-flex gap-1">
+                      <button
+                        onClick={() =>
+                          handleSave(idx, probe.part_number, probe.quantity)
+                        }
+                        className="btn btn-success btn-sm border-0"
+                        data-tooltip-id="tp-tooltip"
+                        data-tooltip-content="Save changes"
+                      >
+                        <Image
+                          src="/save.svg"
+                          alt="Save"
+                          width={20}
+                          height={20}
+                        />
+                      </button>
+                      <button
+                        onClick={() => handleRemoveOne(idx)}
+                        className="btn btn-danger btn-sm border-0"
+                        data-tooltip-id="tp-tooltip"
+                        data-tooltip-content="Delete this test probe"
+                      >
+                        <Image
+                          src="/delete.svg"
+                          alt="Delete"
+                          width={20}
+                          height={20}
+                        />
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <span className="fw-bold">
+                      PN: {probe.part_number} — Qty: {probe.quantity}
+                    </span>
+                    <div className="d-flex gap-1">
+                      <button
+                        onClick={() => toggleEdit(idx)}
+                        className="btn btn-edit btn-sm border-0"
+                        data-tooltip-id="tp-tooltip"
+                        data-tooltip-content="Edit Test Probe"
+                      >
+                        <Image
+                          src="/edit.svg"
+                          alt="Edit"
+                          width={20}
+                          height={20}
+                        />
+                      </button>
+                      <button
+                        onClick={() => handleRemoveOne(idx)}
+                        className="btn btn-primary btn-sm border-0"
+                        data-tooltip-id="tp-tooltip"
+                        data-tooltip-content="Delete Test Probe"
+                      >
+                        <Image
+                          src="/delete.svg"
+                          alt="Delete"
+                          width={20}
+                          height={20}
+                        />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+          <div className="d-flex justify-content-center mt-1">
+            <button
+              type="button"
+              onClick={handleSubmitAll}
+              className="btn btn-success fw-bold text-nowrap scaleEffect"
+            >
+              Submit All
+            </button>
+          </div>
+        </div>
+      )}
+      {/* Tooltip container */}
+      <Tooltip id="tp-tooltip" place="top" />
+    </div>
+  );
 };
+
+export default AddTestProbes;

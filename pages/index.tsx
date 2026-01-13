@@ -6,31 +6,39 @@ import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 
 const Home = () => {
-  const { data: session } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const [triggerFetch, setTriggerFetch] = useState(false);
 
-  //Set a fetch interval for new data - used for reloading data in production screen
+  // Redirect authenticated users to /editprojects (do this in an effect)
   useEffect(() => {
-    let intervalID = setInterval(() => {
-      if (triggerFetch) {
-        setTriggerFetch(false);
-      } else {
-        setTriggerFetch(true);
-      }
+    if (status === "authenticated") {
+      router.replace("/editprojects");
+    }
+  }, [status, router]);
+
+  // Public auto-refresh only when NOT authenticated (otherwise we’re redirecting)
+  useEffect(() => {
+    if (status === "authenticated") return; // skip interval while redirecting
+    const intervalID = setInterval(() => {
+      setTriggerFetch((prev) => !prev);
     }, 10000);
+    return () => clearInterval(intervalID);
+  }, [status]);
 
-    return () => {
-      clearInterval(intervalID);
-    };
-  }, [triggerFetch]);
-
-  if (session) {
-    try {
-      router.push("/editprojects");
-    } catch (err) {}
-    return null;
+  // While deciding auth or performing redirect, render a tiny placeholder
+  if (status === "loading" || status === "authenticated") {
+    return (
+      <>
+        <Head>
+          <title>Fixture Counter</title>
+        </Head>
+        <div className="paddingTopBottom text-center">Loading…</div>
+      </>
+    );
   }
+
+  // Unauthenticated: show the public table (Show All)
   return (
     <>
       <Head>

@@ -1,12 +1,71 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "D:\\Counter Application\\EquipmentCounterApplication\\",
-  "Documents": [],
+  "WorkspaceRootPath": "D:\\CounterApp\\EquipmentCounterApplication\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\CounterApp\\EquipmentCounterApplication\\lib\\database.ts||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:lib\\database.ts||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\CounterApp\\EquipmentCounterApplication\\pages\\api\\auth\\[...nextauth].js||{14D17961-FE51-464D-9111-C4AF11D7D99A}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:pages\\api\\auth\\[...nextauth].js||{14D17961-FE51-464D-9111-C4AF11D7D99A}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\CounterApp\\EquipmentCounterApplication\\pages\\signin.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:pages\\signin.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
+    }
+  ],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
       "VerticalTabListWidth": 256,
-      "DocumentGroups": []
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 2,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "signin.tsx",
+              "DocumentMoniker": "D:\\CounterApp\\EquipmentCounterApplication\\pages\\signin.tsx",
+              "RelativeDocumentMoniker": "pages\\signin.tsx",
+              "ToolTip": "D:\\CounterApp\\EquipmentCounterApplication\\pages\\signin.tsx",
+              "RelativeToolTip": "pages\\signin.tsx",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
+              "WhenOpened": "2025-06-16T14:49:14.711Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "[...nextauth].js",
+              "DocumentMoniker": "D:\\CounterApp\\EquipmentCounterApplication\\pages\\api\\auth\\[...nextauth].js",
+              "RelativeDocumentMoniker": "pages\\api\\auth\\[...nextauth].js",
+              "ToolTip": "D:\\CounterApp\\EquipmentCounterApplication\\pages\\api\\auth\\[...nextauth].js",
+              "RelativeToolTip": "pages\\api\\auth\\[...nextauth].js",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001646|",
+              "WhenOpened": "2025-06-16T14:48:35.914Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "database.ts",
+              "DocumentMoniker": "D:\\CounterApp\\EquipmentCounterApplication\\lib\\database.ts",
+              "RelativeDocumentMoniker": "lib\\database.ts",
+              "ToolTip": "D:\\CounterApp\\EquipmentCounterApplication\\lib\\database.ts",
+              "RelativeToolTip": "lib\\database.ts",
+              "ViewState": "AgIAAA8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
+              "WhenOpened": "2025-06-16T14:48:30.329Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
     }
   ]
 }

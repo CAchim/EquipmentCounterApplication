@@ -21,6 +21,7 @@
   },
   "include": [
     "next-env.d.ts",
+    "next-auth.d.ts",      // add this line
     "**/*.ts",
     "**/*.tsx"
 , "pages/viewprojects.jsx", "pages/signin.jsx", "pages/index.jsx", "pages/editprojects.jsx"  ],

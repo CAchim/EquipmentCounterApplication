@@ -7,9 +7,9 @@ import Modal, { ModalProps } from '../components/modal'
 import Image from 'next/image'
 import confirmNOK from '../public/undraw_cancel_u-1-it.svg'
 import confirmOK from '../public/confirm_OK.svg'
-import RemoveUser from '../components/removeUser'
+import EditTPs from '../components/editTPs'
 
-const RemoveAnUser = () => {
+const EditTestProbes = () => {
   const { status } = useSession()
   const { data: session } = useSession()
   const router = useRouter()
@@ -78,11 +78,11 @@ const RemoveAnUser = () => {
 
   if (status === 'authenticated') {
     //@ts-ignore
-    if (session?.user?.user_group =='admin')      
+    if (session?.user?.user_group =='admin' || session?.user?.user_group =='engineer')      
     return (
       <>
         <Head>
-          <title>Remove user</title>
+          <title>Remove test-probes</title>
         </Head>
         <div className="d-flex flex-column justify-content-center align-items-center position-relative top-0 start-0 w-100 screen-100 bg-light paddingTopBottom m-auto">
           <Image
@@ -90,11 +90,11 @@ const RemoveAnUser = () => {
             width={window.innerWidth / 2}
             height={window.innerHeight / 2}
             priority
-            alt="removeUser"
+            alt="removeTPs"
             className=""
           ></Image>
           <div className="w-100">
-            <RemoveUser openModalAction={openModal} />
+            <EditTPs openModalAction={openModal} />
           </div>
         </div>
         <div className="d-none" ref={parentModalElement}>
@@ -165,8 +165,8 @@ const RemoveAnUser = () => {
     }
 }
 
-export default RemoveAnUser
+export default EditTestProbes
 
-RemoveAnUser.getLayout = function getLayout(page: any) {
+EditTestProbes.getLayout = function getLayout(page: any) {
   return <Layout>{page}</Layout>
 }

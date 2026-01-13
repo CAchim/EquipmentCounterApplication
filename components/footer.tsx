@@ -4,7 +4,7 @@ const Footer = () => {
   return (
     <footer>
       <p className="text-light text-center m-0 p-2">
-        &copy;&nbsp;Continental Automotive Romania&nbsp;- {currentDate.getFullYear()}
+        &copy;&nbsp;Aumovio Romania&nbsp;- {currentDate.getFullYear()}
       </p>
     </footer>
   );

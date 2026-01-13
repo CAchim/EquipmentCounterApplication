@@ -79,7 +79,7 @@ const ChangethePassword = () => {
 
   if (status === 'authenticated') {
     //@ts-ignore
-    if (session?.user?.user_group =='admin' || session?.user?.user_group =='TDE' || session?.user?.user_group =='maintenance')   
+    if (session?.user?.user_group =='admin' || session?.user?.user_group =='engineer' || session?.user?.user_group =='maintenance')   
     return (
       <>
         <Head>

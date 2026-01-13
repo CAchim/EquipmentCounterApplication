@@ -1,10 +1,29 @@
-$primary: #ffa500;
-$secondary: #0051c3;
-$warning: #ffff00;
 
+// styles/global.scss
+
+// ——————————————————————————————————————————————————————————
+// Original color variables (unchanged)
+// ——————————————————————————————————————————————————————————
+$primary:       #ff4c00 !default;  // original primary for save/edit/delete etc.
+$secondary:     #0051c3 !default;  // original secondary
+$warning:       #ffff00 !default;  // original warning
+
+// ——————————————————————————————————————————————————————————
+// New variables for navbar theming (AUMOVIO palette)
+// ——————————————————————————————————————————————————————————
+$navbar-bg:       #FA400A !default;  // navbar background
+$navbar-btn:      #FFA94A !default;  // navbar sign-in/sign-out buttons
+$navbar-btn-dark: #FFB05F !default;  // navbar button hover
+
+// ——————————————————————————————————————————————————————————
+// Bootstrap & animations
+// ——————————————————————————————————————————————————————————
 @import "../node_modules/bootstrap/scss/bootstrap.scss";
 @import "animate.css";
 
+// ——————————————————————————————————————————————————————————
+// Your existing styles (unchanged)
+// ——————————————————————————————————————————————————————————
 html,
 body {
   background-image: url("../public/Background.webp");
@@ -16,6 +35,12 @@ body::-webkit-scrollbar {
   width: 10px;
   height: 5px;
   margin: 1%;
+}
+
+/* give any element .fixed-width the same width+centered text */
+.fixed-width {
+  width: 100px;       /* pick whatever width you need */
+  text-align: center; /* keep the label centered */
 }
 
 body::-webkit-scrollbar-track {
@@ -51,6 +76,38 @@ div::-webkit-scrollbar-thumb {
   outline: 1px solid #0051c3;
 }
 
+/* styles/global.scss */
+.btn-mycolor {
+  background-color: #ff9500;  /* your new background */
+  border-color:     #ff9500;  /* matching border */
+
+  &:hover {
+    background-color: #dd8000;
+    border-color:     #dd8000;
+    transform: scale(1.3, 1.3);
+  }
+}
+
+.btn-edit {
+  background-color: #ff9500;  /* your new background */
+  border-color:     #ff9500;  /* matching border */
+
+  &:hover {
+    background-color: #dd8000;
+    border-color:     #dd8000;
+  }
+}
+
+.bg-danger {
+  background-color: #ff0000 !important; // custom red
+  color: #ffffff !important;
+}
+
+.bg-warning {
+  background-color: #ffef00 !important; // custom yellow
+  color: #000 !important;
+}
+
 .menubuttons {
   transition: all 0.15s ease-out;
 }
@@ -84,6 +141,7 @@ div::-webkit-scrollbar-thumb {
 .createProjectBarSize {
   font-size: 1rem;
 }
+
 @include media-breakpoint-up(sm) {
   .searchBarWidth {
     width: 50%;
@@ -101,9 +159,14 @@ div::-webkit-scrollbar-thumb {
     }
   }
   .createProjectBarSize {
-    font-size: 1.3rem;
+    font-size: 1.2rem;
+    background-color: #ffffff;
+    color: #150452;
+    padding: 0.75rem;
+    border-radius: 10px;
   }
 }
+
 .zIndex-2000 {
   z-index: 2000;
 }
@@ -114,6 +177,7 @@ div::-webkit-scrollbar-thumb {
     padding-bottom: 10vh;
   }
 }
+
 @include media-breakpoint-down(sm) {
   .fontSmall {
     font-size: 11px;
@@ -143,6 +207,7 @@ div::-webkit-scrollbar-thumb {
 .scaleEffect:hover {
   transform: scale(1.05, 1.05);
 }
+
 .shadowEffect {
   box-shadow: 2px 2px 5px #ddd;
 }
@@ -155,10 +220,10 @@ footer {
   font-size: 0.8rem;
 }
 
-  .float-container {
-    border: 2px solid rgba(0, 0, 0, 0.2);
-    border-radius: 5px;
-    padding: 20px;
+.float-container {
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  border-radius: 5px;
+  padding: 20px;
 }
 
 .float-child1 {
@@ -167,7 +232,7 @@ footer {
   padding: 20px;
   font-size: 20px;
   font-weight: bold;
-} 
+}
 
 .float-child2 {
   width: 25%;
@@ -175,6 +240,704 @@ footer {
   padding: 20px;
   font-size: 20px;
   font-weight: bold;
-} 
+}
+
+// ——————————————————————————————————————————————————————————
+// Navbar & Sign-in/out button overrides only
+// ——————————————————————————————————————————————————————————
+
+// AUMOVIO gradient for navbar background
+.navbar {
+  background-image: linear-gradient(
+    to right,
+    #3e239b 0%,
+    #e20016 15%,
+    #ff0000 25%,
+    #ff4c00 35%,
+    #ff6700 45%,
+    #ff9500 55%,
+    #ffb200 65%,
+    #ff8c00 75%,
+    #ff3f00 85%,
+    #ff1f00 100%
+  ) !important;
+}
+
+.navbar-fade-bottom {
+  position: relative;
+  z-index: 100;
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 10px;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0), #0c0f16);
+    pointer-events: none;
+    z-index: 1;
+  }
+}
+
+// Only style primary buttons inside navbar (sign in/out)
+.navbar .btn-primary {
+  background-color: $navbar-btn !important;
+  border-color:     $navbar-btn !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+
+  &:hover {
+    background-color: $navbar-btn-dark !important;
+    border-color:     $navbar-btn-dark !important;
+  }
+}
+
+.custom-dropdown {
+  position: absolute !important;
+  top: 100% !important;
+  right: 0;
+  left: auto;
+  margin-top: 0.5rem;
+  z-index: 1055;
+
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 0.5rem;
+  border: none;
+  min-width: 200px;
+  transform-origin: top right;
+
+  &.show {
+    animation: dropdownFadeScale 0.2s ease forwards;
+  }
+
+  .dropdown-header {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #150452;
+    padding: 0.5rem 1rem;
+    margin-bottom: 0.25rem;
+    border-bottom: 1px solid rgba(62, 35, 155, 0.5);
+  }
+
+  .dropdown-item {
+    color: #150452;
+    padding: 0.5rem 1rem;
+    border-radius: 10px;
+    transition: background-color 0.2s, color 0.2s;
+
+    &:hover {
+      background: linear-gradient(135deg, #6c3fbb 0%, #f44336 50%, #faaa00 100%);
+      color: #ffffff;
+    }
+  }
+
+  .dropdown-divider {
+    border-color: rgba(62, 35, 155, 0.5);
+  }
+}
+
+@keyframes dropdownFadeScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.search-bar {
+  max-width: 300px;
+  border-radius: 10px;
+  padding: 0.6rem 1rem;
+}
+
+.invisible-table {
+  position: absolute;
+  visibility: hidden;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+table {
+  table-layout: auto;
+  width: 100%;
+}
+
+th, td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+thead th {
+  position: sticky;
+  top: 0;
+  background-color: #3e239b; // or match your header gradient
+  z-index: 10;
+}
+
+.test-probes-cell {
+  max-width: 300px;  // 💡 or whatever maximum you want
+  white-space: normal;
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.list-group-item {
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+  transition: background-color 0.3s ease;
+
+  &:hover {
+    background-color: #f8f9fa;
+  }
+
+  .btn-danger {
+    border-radius: 8px;
+  }
+}
+
+.test-probe-list {
+  background-color: #f8f9fa;
+  color: #150452;
+  padding: 0.75rem;
+  border-radius: 10px;
+  margin-top: 1rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  max-width: 500px;
+  width: 100%;
+}
+
+.test-probe-text {
+  color: #150452 !important;         // Use a dark color for visibility
+  font-weight: 600;               // Semi-bold
+  font-size: 1rem;                // Adjust font size as needed
+  white-space: normal;
+  word-break: break-word;
+}
+
+.input-fields {
+  background-color: #ffffff;
+  color: #150452;
+  padding: 0.75rem;
+  border-radius: 10px;
+  margin-top: 0.75rem;
+  font-size: 1.2rem;
+  max-width: 500px;
+  width: 100%; 
+}
+
+.input-section {
+  max-width: 500px;
+  width: 100%; 
+}
+
+.test-probe-input-list {
+  background-color: #f8f9fa;
+  color: #150452;
+  padding: 0.75rem;
+  border-radius: 10px;
+  margin-top: 1rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  max-width: 390px;
+  width: 100%;
+}
+
+.qty-input-list {
+  background-color: #f8f9fa;
+  color: #150452;
+  padding: 0.75rem;
+  border-radius: 10px;
+  margin-top: 1rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  max-width: 100px;
+  width: 100%;
+}
+
+.probe-limit-text {
+  font-size: 0.75rem; // or adjust as needed
+  color: #150452;
+}
+
+.add-test-probe-list {
+  background-color: #f8f9fa;
+  color: #150452;
+  padding: 0.75rem;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  max-width: 525px;
+  width: 100%;
+}
+
+.sticky-col {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: inherit;
+  position: sticky;
+  left: 0;
+  z-index: 1000;
+}
 
 
+@media (max-width: 768px) {
+  .table-sm td,
+  .table-sm th {
+    font-size: 0.75rem !important;
+    padding: 0.3rem !important;
+  }
+
+  .scroll-hint {
+    font-size: 0.7rem;
+  }
+
+  .test-probes-cell {
+    font-size: 0.65rem;
+  }
+}
+
+.scroll-hint {
+  font-size: 0.9rem;
+}
+
+.fontMobile {
+  font-size: 0.75rem !important;
+}
+
+.fontDesktop {
+  font-size: 0.9rem !important;
+}
+
+.clickable-row {
+  cursor: pointer;
+}
+
+
+.menu-icon-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.stack-buttons {
+  flex-direction: column !important;
+}
+
+.table-hover > tbody > tr.bg-danger:hover > * {
+  background-color: #ff0000 !important; // match .bg-danger
+  color: white !important;
+}
+
+.table-hover > tbody > tr.bg-warning:hover > * {
+  background-color: #ffef00 !important; // match .bg-warning
+  color: black !important;
+}
+
+.signin-wrapper {
+  margin-right: 2rem; // Moves button slightly to the left
+}
+
+.btn-signin {
+  background: transparent;          // No box background
+  border: none;                     // Remove border
+  color: white;                     // White text by default
+  font-size: 1.5rem;                  // Slightly larger text
+  font-weight: 600;                 // Bold text
+ // padding: 0.3rem;           // Spacing inside button
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+
+  .signin-text {
+    font-weight: 700;               // Extra bold for emphasis
+  }
+
+  .signin-icon {
+    display: inline-block;
+    transition: transform 0.2s ease-in-out;
+  }
+
+  &:hover {
+    transform: scale(1.1);         // Subtle zoom effect
+  }
+
+  &:focus {
+    outline: none;
+    box-shadow: none;
+  }
+}
+
+.navbar-brand {
+  font-size: 2.75rem !important;  /* Increase size */
+  font-weight: 800 !important;   /* Make it bold */
+  line-height: 1 !important;     /* Prevent navbar from getting taller */
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  display: flex;
+  align-items: center;
+}
+
+.navbar-logo-link {
+  padding-left: 15vw;  /* or any % / px value */
+}
+
+.navbar-logo {
+  max-height: 35px;
+  height: auto;
+  width: auto;
+}
+
+@media (max-width: 576px) {
+  .navbar-logo {
+    max-height: 28px;
+  }
+}
+
+.plant-dropdown {
+  max-height: 200px;   // adjust height to your liking
+  overflow-y: auto;    // only dropdown scrolls
+  overflow-x: hidden;  // no horizontal scroll
+}
+
+/* Hide default dropdown arrow */
+select.form-control {
+  appearance: none;       
+  -webkit-appearance: none; 
+  -moz-appearance: none;  
+  background-image: none; 
+  padding-right: 1.5rem;
+}
+
+.edit-users-table-wrapper table,
+.edit-users-table-wrapper tr,
+.edit-users-table-wrapper td,
+.edit-users-table-wrapper th {
+  overflow: visible !important;
+}
+
+.edit-users-table-wrapper .dropdown-menu.group-dropdown {
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 2000;
+}
+
+.edit-users-table-wrapper .table-responsive {
+  overflow: visible !important;
+}
+
+.plant-text{
+  font-size: 1.2rem !important;  /* Increase size */
+  font-weight: 600 !important;   /* Make it bold */  
+  color: white;                     // White text by default
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  display: flex;
+  align-items: center;
+}
+
+.buttons-hover{
+    &:hover {
+    transform: scale(1.2, 1.2);
+  }
+}
+
+
+/////////////////////////////////
+.navbar-right {
+  gap: 12px;
+}
+
+.selected-plant-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.6rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-weight: 600;
+  font-size: 1.2rem;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: clamp(140px, 22vw, 320px);
+}
+
+.navbar-right .flex-shrink-0 {
+  flex-shrink: 0;
+}
+
+.navbar-right .buttons-hover:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+
+@media (max-width: 576px) {
+  .selected-plant-pill {
+    max-width: clamp(100px, 40vw, 200px);
+    font-size: 0.9rem;
+  }
+}
+
+/* ===== Plants Management page ===== */
+
+.manage-plants-page {
+  min-height: 100vh;
+  padding-top: 120px; // pushes everything down, fixes background “glitch”
+}
+
+/* Header */
+.manage-plants-title {
+  font-weight: 800;
+  font-size: 2rem;
+  color: #ffffff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  margin-bottom: 0.3rem;
+}
+
+.manage-plants-subtitle {
+  font-size: 0.95rem;
+  color: #dfe3e6;
+  opacity: 0.9;
+  margin-bottom: 0.5rem;
+}
+
+.manage-plants-underline {
+  width: 750px;
+  height: 3.5px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    #3e239b 0%,
+    #e20016 10%,
+    #ff0000 15%,
+    #ff4c00 25%,
+    #ff6700 35%,
+    #ff9500 45%,
+    #ffb200 50%,
+    #ff9500 55%,
+    #ff6700 65%,
+    #ff4c00 75%,
+    #ff0000 85%,
+    #e20016 90%,
+    #3e239b 100%
+  );
+}
+
+/* Cards */
+.manage-plants-card {
+  border-radius: 0.75rem;
+}
+
+/* Add form: full card width, centered */
+.manage-plants-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.manage-plants-add-btn {
+  width: 100%;
+  font-weight: 600;
+}
+
+/* Table: let Bootstrap handle row height / aspect ratio */
+.manage-plants-table {
+  padding: 0;
+  /* no extra height/spacing changes – keep default look */
+}
+
+/* Delete icon button */
+.manage-plants-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  width: 32px;
+  padding: 0;
+  border-radius: 999px;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
+
+  img {
+    pointer-events: none;
+  }
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0.3rem 0.6rem rgba(220, 53, 69, 0.35);
+  }
+}
+
+.manage-back-btn {
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 6px 14px;
+  backdrop-filter: blur(4px);
+  color: #ffffff;
+  border-color: rgba(255,255,255,0);
+  transition: 0.2s ease;
+
+  &:hover {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+  }
+}
+
+/* ===== Logs page enhancements ===== */
+
+.logs-filters {
+  align-items: stretch;
+}
+
+.logs-date-filter {
+  min-width: 220px;
+}
+
+.logs-row-clickable {
+  cursor: pointer;
+}
+
+/* Wider table */
+.logs-table-wrapper {
+  overflow-x: auto;
+}
+
+.logs-table {
+  min-width: 1300px;
+  font-size: 0.9rem;
+}
+
+/* Sortable headers */
+.logs-header-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.logs-header-sortable:hover {
+  text-decoration: underline;
+}
+
+.logs-sort-indicator {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+/* Modal overlay */
+.logs-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.logs-modal {
+  max-width: 800px;
+  width: 90%;
+  max-height: 80vh;
+  border-radius: 1rem;
+  background: #ffffff;
+  overflow: auto;
+}
+
+/* Details layout */
+.logs-details dl {
+  margin: 0;
+}
+
+.logs-detail-row {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.logs-detail-row:last-child {
+  border-bottom: none;
+}
+
+.logs-detail-key {
+  min-width: 160px;
+  font-weight: 600;
+  margin: 0;
+  color: #555;
+}
+
+.logs-detail-value {
+  margin: 0;
+  word-break: break-word;
+}
+
+.logs-table-wrapper {
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.logs-table {
+  min-width: 1600px; /* expanded width */
+  font-size: 0.9rem;
+}
+
+/* Horizontal scroll */
+.logs-table-wrapper {
+  overflow-x: auto;
+}
+
+/* Vertical scroll inside table only */
+.logs-table-scroll {
+  max-height: calc(100vh - 340px); /* fits filters + padding */
+  overflow-y: auto;
+}
+
+.paddingTopBottomLog {
+  padding-top: 7.5vh;
+  padding-bottom: 2.5vh;
+}
+
+
+.analytics-card {
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+
+.analytics-card .label {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.analytics-card .value {
+  color: #fff;
+  font-weight: 700;
+}
+
+/* Sticky footer layout wrapper */
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Main grows, footer stays at bottom */
+.app-main {
+  flex: 1;
+  min-width: 0; /* helps Recharts ResponsiveContainer inside flex layouts */
+}
