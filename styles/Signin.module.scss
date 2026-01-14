@@ -515,9 +515,3 @@
 .togglePasswordForgot:focus {
   outline: none;
 }
-
-/* Hide built-in Windows/Edge password reveal + clear buttons */
-input[type="password"]::-ms-reveal,
-input[type="password"]::-ms-clear {
-  display: none;
-}
