@@ -941,3 +941,9 @@ select.form-control {
   flex: 1;
   min-width: 0; /* helps Recharts ResponsiveContainer inside flex layouts */
 }
+
+/* Hide built-in Windows/Edge password reveal + clear buttons */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}

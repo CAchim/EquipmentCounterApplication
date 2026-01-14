@@ -68,9 +68,11 @@ export const authOptions = {
 
           // 🔹 Fetch user ONLY by identifier (no password in WHERE)
           const rows = await queryDatabase(
-            `SELECT * FROM Users 
-             WHERE (email = ? OR user_id = ?)
-             LIMIT 1`,
+            `SELECT u.*, p.plant_name
+            FROM Users u
+            LEFT JOIN Plants p ON p.entry_id = u.plant_id
+            WHERE (u.email = ? OR u.user_id = ?)
+            LIMIT 1`,
             [identifier, identifier]
           );
 

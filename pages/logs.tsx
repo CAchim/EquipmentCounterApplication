@@ -36,6 +36,25 @@ const LogsPage = () => {
     direction: "asc" | "desc";
   } | null>(null);
 
+  // Helpers
+  const userGroup = String((session?.user as any)?.user_group || "")
+    .trim()
+    .toLowerCase();
+  const isAdmin = userGroup === "admin";
+
+  const sessionPlant = String(
+    (session?.user as any)?.fixture_plant ||
+      (session?.user as any)?.plant_name ||
+      ""
+  ).trim();
+
+  // For this page:
+  // - Admin: use navbar selectedPlant (empty => show all)
+  // - Non-admin: always use plant from session (fallback to selectedPlant if your context is already set)
+  const plantForRequest = isAdmin
+    ? String(selectedPlant || "").trim()
+    : (sessionPlant || String(selectedPlant || "").trim());
+
   // Redirect unauthenticated users
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -43,17 +62,19 @@ const LogsPage = () => {
     }
   }, [status, router]);
 
-  // Fetch logs when authenticated or when admin changes plant
+  // Fetch logs when authenticated or when plant changes (admin via navbar, non-admin via session plant)
   useEffect(() => {
     const fetchLogs = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // 🔹 Build payload, include plant only if selected
         const payload: any = { action: "getLogs" };
-        if (selectedPlant && selectedPlant.trim() !== "") {
-          payload.fixture_plant = selectedPlant.trim();
+
+        // ✅ Always include plant for non-admin
+        // ✅ For admin include only if selected (empty => show all)
+        if (plantForRequest && plantForRequest !== "") {
+          payload.fixture_plant = plantForRequest;
         }
 
         const res = await fetch("/api/logs", {
@@ -66,21 +87,39 @@ const LogsPage = () => {
 
         if (data.status !== 200) {
           setError(data.message || "Failed to load logs");
+          setLogs([]);
         } else {
           setLogs(data.data || []);
         }
       } catch (err: any) {
         console.error("Error fetching logs:", err);
         setError("Error fetching logs");
+        setLogs([]);
       } finally {
         setLoading(false);
       }
     };
 
     if (status === "authenticated") {
+      // Non-admin: if we still don't have a plant, show a clear error (prevents “empty page confusion”)
+      if (!isAdmin && (!plantForRequest || plantForRequest.trim() === "")) {
+        setLoading(false);
+        setLogs([]);
+        setError(
+          "Your account has no plant assigned (fixture_plant). Please contact an admin."
+        );
+        return;
+      }
+
       fetchLogs();
     }
-  }, [status, selectedPlant]); // 🔹 refetch when plant changes
+  }, [
+    status,
+    selectedPlant,
+    sessionPlant,
+    isAdmin,
+    plantForRequest,
+  ]);
 
   // Determine visible columns dynamically (hide entry_id)
   const columnKeys: string[] = useMemo(
@@ -418,9 +457,7 @@ const LogsPage = () => {
                               return (
                                 <React.Fragment key={key}>
                                   <td>
-                                    {tsDate
-                                      ? tsDate.toLocaleDateString()
-                                      : ""}
+                                    {tsDate ? tsDate.toLocaleDateString() : ""}
                                   </td>
                                   <td>
                                     {tsDate
@@ -477,9 +514,7 @@ const LogsPage = () => {
                         className="d-flex flex-column flex-md-row logs-detail-row"
                         key={key}
                       >
-                        <dt className="logs-detail-key">
-                          {formatHeader(key)}
-                        </dt>
+                        <dt className="logs-detail-key">{formatHeader(key)}</dt>
                         <dd className="logs-detail-value">
                           {selectedLog[key] !== null &&
                           selectedLog[key] !== undefined

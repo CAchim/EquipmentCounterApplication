@@ -24,43 +24,56 @@ export default async function handler(
         .json({ status: 400, message: "Missing action parameter" });
     }
 
-    // 🔹 Important: cast authOptions to any for TS, and cast session as any
-    const session: any = await getServerSession(
-      req,
-      res,
-      authOptions as any
-    );
+    // 🔹 NextAuth v4 pages router: (req, res, authOptions)
+    const session: any = await getServerSession(req, res, authOptions as any);
 
     if (!session) {
       return res.status(401).json({ status: 401, message: "Unauthorized" });
     }
 
     const user = session.user || {};
-    const userGroup = (user.user_group || "").toString().toLowerCase();
-
-    // from Users/session (normalized in auth): e.g. "Arad", "Munich", etc.
-    const userFixturePlant: string | null =
-      (user.fixture_plant as string) || null;
+    const userGroup = String(user.user_group || "").trim().toLowerCase();
+    const isAdmin = userGroup === "admin";
 
     // optional plant filter coming from frontend (navbar plant selector)
-    const requestedPlantRaw: string =
-      (body.fixture_plant || body.plant || "").toString();
+    const requestedPlantRaw = String(body.fixture_plant || body.plant || "");
     const requestedPlant = requestedPlantRaw.trim() || null;
+
+    // plant coming from session (normalized user)
+    const sessionPlantRaw = String(
+      user.fixture_plant || user.plant_name || ""
+    );
+    const sessionPlant = sessionPlantRaw.trim() || null;
 
     let raw: any;
 
     switch (action) {
       case "getLogs": {
-        const isAdmin = userGroup === "admin";
+        /**
+         * Effective plant rules:
+         * - Admin:
+         *    - if requestedPlant is provided -> filter by plant
+         *    - else -> show all logs
+         * - Non-admin:
+         *    - ALWAYS restricted to a plant
+         *    - prefer sessionPlant
+         *    - fallback to requestedPlant (so this page behaves like others)
+         */
+        const effectivePlant = isAdmin ? requestedPlant : sessionPlant || requestedPlant;
+
+        if (!isAdmin && !effectivePlant) {
+          return res.status(400).json({
+            status: 400,
+            message:
+              "Missing plant for non-admin user (fixture_plant/plant_name not in session and no plant provided).",
+          });
+        }
 
         if (isAdmin) {
-          // 🔹 Admin:
-          // - if a plant is selected in navbar -> filter by that plant
-          // - if "Show all" (empty) -> show all plants
-          if (requestedPlant) {
+          if (effectivePlant) {
             raw = await queryDatabase(
               "SELECT * FROM db_logs WHERE fixture_plant = ? ORDER BY entry_id DESC",
-              [requestedPlant]
+              [effectivePlant]
             );
           } else {
             raw = await queryDatabase(
@@ -69,17 +82,9 @@ export default async function handler(
             );
           }
         } else {
-          // 🔹 Non-admin: always restricted to their own fixture_plant
-          if (!userFixturePlant) {
-            return res.status(400).json({
-              status: 400,
-              message: "Missing fixture_plant on user session",
-            });
-          }
-
           raw = await queryDatabase(
             "SELECT * FROM db_logs WHERE fixture_plant = ? ORDER BY entry_id DESC",
-            [userFixturePlant]
+            [effectivePlant]
           );
         }
 
