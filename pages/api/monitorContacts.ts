@@ -21,11 +21,14 @@ type TestProbeInfo = { partNumber: string; qty: number };
 
 /* ======================= Config via env ======================= */
 
-const MONITOR_SECRET = process.env.MONITOR_CONTACTS_SECRET || "superSecret123";
+const MONITOR_SECRET = process.env.MONITOR_CONTACTS_SECRET;
+if (!MONITOR_SECRET) {
+  throw new Error("MONITOR_CONTACTS_SECRET is not set");
+}
 
 const WINDOW_HOURS = Number(process.env.CONTACT_MONITOR_WINDOW_HOURS || "24");
 
-const MAX_EMAILS_PER_RUN = Number(process.env.CONTACT_MONITOR_MAX_EMAILS || "200");
+const MAX_EMAILS_PER_RUN = Number(process.env.CONTACT_MONITOR_MAX_EMAILS || "1000");
 
 const MONITOR_TRIGGERED_BY = "contacts_monitor";
 
@@ -37,7 +40,22 @@ const groupEmailCache = new Map<string, string[]>(); // key: `${plant}|${group}`
 const testProbesCache = new Map<string, TestProbeInfo[]>(); // key: `${plant}|${adapter}|${fixture}`
 const ownerNameCache = new Map<string, string | null>(); // key: owner_email
 
-/* ======================= Helper functions ======================= */
+/* ======================= Small helpers ======================= */
+
+/**
+ * serverless-mysql / mysql can return different shapes:
+ *  - SELECT -> rows (array of objects)
+ *  - CALL proc -> [rows, ...]
+ *  - some wrappers -> [[rows], fields]
+ *
+ * This normalizes to "array of row objects".
+ */
+function normalizeRows<T = any>(rows: any): T[] {
+  if (!Array.isArray(rows)) return [];
+  // if first element is also an array, it usually contains the actual rows
+  if (Array.isArray(rows[0])) return (rows[0] as T[]) ?? [];
+  return rows as T[];
+}
 
 function getCooldownDate(): Date {
   if (WINDOW_HOURS <= 0) return new Date(0);
@@ -74,9 +92,9 @@ async function getTestProbesForProject(params: {
     fixture_plant,
   ]);
 
-  const data = Array.isArray(rows) ? rows[0] ?? [] : [];
+  const data = normalizeRows<any>(rows);
 
-  const result = (data as any[]).map((r: any) => ({
+  const result = data.map((r: any) => ({
     partNumber: String(r.part_number ?? r.partNumber ?? ""),
     qty: Number(r.qty ?? r.quantity ?? 0),
   }));
@@ -95,9 +113,9 @@ async function fetchGroupEmailsForPlant(plant: string, groupName: string): Promi
     groupName,
   ]);
 
-  const data = Array.isArray(rows) ? rows[0] ?? [] : [];
+  const data = normalizeRows<any>(rows);
 
-  const emails = (data as any[])
+  const emails = data
     .map((r) => String(r.email ?? r.user_email ?? r.owner_email ?? "").trim())
     .filter((e) => e && e.includes("@"));
 
@@ -122,7 +140,8 @@ async function fetchOwnerFirstNameByEmail(email: string | null): Promise<string 
       [email]
     );
 
-    const firstName = Array.isArray(rows) && rows.length ? String(rows[0]?.first_name ?? "") : "";
+    const data = normalizeRows<any>(rows);
+    const firstName = data.length ? String(data[0]?.first_name ?? "") : "";
     const result = firstName.trim() || null;
 
     ownerNameCache.set(key, result);
@@ -188,7 +207,7 @@ async function getProjectsNeedingWarning(): Promise<ProjectRow[]> {
     [cutoff]
   );
 
-  return Array.isArray(rows) ? rows : [];
+  return normalizeRows<ProjectRow>(rows);
 }
 
 async function getProjectsNeedingLimit(): Promise<ProjectRow[]> {
@@ -242,9 +261,8 @@ async function getProjectsNeedingLimit(): Promise<ProjectRow[]> {
     [cutoff]
   );
 
-  return Array.isArray(rows) ? rows : [];
+  return normalizeRows<ProjectRow>(rows);
 }
-
 
 /* ======================= Process WARNING ======================= */
 
@@ -301,7 +319,7 @@ async function processWarnings(): Promise<void> {
         limit: Number(p.contacts_limit ?? 0),
         triggeredBy: MONITOR_TRIGGERED_BY,
         testProbes,
-        cc, // ✅ added
+        cc,
       });
 
       emailsSentThisRun++;
