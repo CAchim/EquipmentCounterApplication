@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import Image from 'next/image'
 import type { Project } from '../pages/api/counterTypes'
@@ -16,7 +16,6 @@ const ProjectsTable = (props: any) => {
   const isMounted = useRef(false)
   // const inputFilterValue = useRef(null)
   const inputFilterValue = useRef<HTMLInputElement>(null);
-  const headerRefs = Array.from({ length: COLUMN_COUNT }, () => useRef<HTMLTableCellElement>(null));
   const [columnWidths, setColumnWidths] = useState<number[]>([]);
   const measureRef = useRef<HTMLTableElement>(null);
   const [isMenuNarrow, setIsMenuNarrow] = useState(false);
@@ -196,7 +195,7 @@ const ProjectsTable = (props: any) => {
         if (updateOwner && ownerEmailFromEdit) {
           await makeDatabaseAction(
             'updateOwner',
-            projectToBeSaved.entry_id, // ✅ use entry_id
+            projectToBeSaved.entry_id, //  use entry_id
             '',
             projectToBeSaved.adapter_code,
             projectToBeSaved.fixture_type,
@@ -216,7 +215,7 @@ const ProjectsTable = (props: any) => {
         if (updateContactsLimit && updateWarning && contactsLimitFromEdit && warningAtFromEdit) {
           await makeDatabaseAction(
             'updateContactsLimitAndWarning',
-            projectToBeSaved.entry_id, // ✅ use entry_id
+            projectToBeSaved.entry_id, //  use entry_id
             '',
             projectToBeSaved.adapter_code,
             projectToBeSaved.fixture_type,
@@ -275,7 +274,7 @@ const ProjectsTable = (props: any) => {
     ) {
       makeDatabaseAction(
         'resetCounter',
-        projectToBeReseted.entry_id, // ✅ use entry_id
+        projectToBeReseted.entry_id, //  use entry_id
         '',
         projectToBeReseted.adapter_code,
         projectToBeReseted.fixture_type,
@@ -317,7 +316,7 @@ const ProjectsTable = (props: any) => {
     ) {
       makeDatabaseAction(
         'deleteProject',
-        projectToBeDeleted.entry_id, // ✅ use entry_id
+        projectToBeDeleted.entry_id, //  use entry_id
         '',
         projectToBeDeleted.adapter_code,
         projectToBeDeleted.fixture_type,
@@ -367,7 +366,7 @@ const ProjectsTable = (props: any) => {
     })
   }
 
-  const fetchDataDB = async () => {
+  const fetchDataDB = useCallback(async () => {
     setAPI_Responded(false);
 
     try {
@@ -433,7 +432,7 @@ const ProjectsTable = (props: any) => {
       console.error("fetchDataDB error:", err);
       if (isMounted.current) setConnectionTimedOut(true);
     }
-  };
+  }, [isAdmin, selectedPlant]);
 
   // 🔁 Initial load + refetch on admin plant change or external trigger
   useEffect(() => {
@@ -443,7 +442,7 @@ const ProjectsTable = (props: any) => {
       isMounted.current = false
     }
   // include trigger prop (for public view auto-refresh), admin flag, and selected plant
-  }, [props.triggerFetchProp, isAdmin, selectedPlant])
+  }, [fetchDataDB, props.triggerFetchProp])
 
     const checkInputValue = (e: React.FormEvent) => {
     e.preventDefault();
@@ -470,15 +469,15 @@ const ProjectsTable = (props: any) => {
       })
     );
 
-    // ✅ Use the filtered list as the new source array
+    //  Use the filtered list as the new source array
     setCounterInfoDB(searchedProjects);
 
-    // ✅ Rebuild pagination for the filtered list
+    //  Rebuild pagination for the filtered list
     const total = Math.ceil(searchedProjects.length / postPerPage.current);
     pagesCount.current = Array.from({ length: total }, (_, i) => i + 1);
     setCurrentPage(1);
 
-    // ✅ Rebuild edit modes for the filtered list
+    //  Rebuild edit modes for the filtered list
     setEditMode(
       searchedProjects.map((_, i) => ({
         entry_id: i,
@@ -486,7 +485,7 @@ const ProjectsTable = (props: any) => {
       }))
     );
 
-    // ✅ Rebuild row highlight info for the filtered list
+    //  Rebuild row highlight info for the filtered list
     setHighlightProject(
       searchedProjects.map((it, i) => ({
         entry_id: i,
@@ -896,11 +895,11 @@ export const makeDatabaseAction = (
       method: "POST",
       mode: "cors",
       cache: "no-cache",
-      credentials: "include", // ✅ ensure session cookies are sent
+      credentials: "include", //  ensure session cookies are sent
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: actionParam,
-        entry_id: entry_idParam,           // ✅ key change (API now resolves by id)
+        entry_id: entry_idParam,           //  key change (API now resolves by id)
         project_name: project_nameParam,
         adapter_code: adapter_codeParam,
         fixture_type: fixture_typeParam,
@@ -912,7 +911,7 @@ export const makeDatabaseAction = (
     })
       .then((result) => result.json())
       .then((resultJson) => {
-        // ✅ extra safeguard: handle unauthorized / errors gracefully
+        //  extra safeguard: handle unauthorized / errors gracefully
         if (resultJson?.message?.code === "ECONNREFUSED" ||
             resultJson?.message?.code === "ER_ACCESS_DENIED_ERROR") {
           reject(new Error("Database connection error"));
