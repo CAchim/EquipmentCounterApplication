@@ -28,7 +28,9 @@ if (!MONITOR_SECRET) {
 
 const WINDOW_HOURS = Number(process.env.CONTACT_MONITOR_WINDOW_HOURS || "24");
 
-const MAX_EMAILS_PER_RUN = Number(process.env.CONTACT_MONITOR_MAX_EMAILS || "1000");
+const MAX_EMAILS_PER_RUN = Number(
+  process.env.CONTACT_MONITOR_MAX_EMAILS || "1000"
+);
 
 const MONITOR_TRIGGERED_BY = "contacts_monitor";
 
@@ -103,7 +105,10 @@ async function getTestProbesForProject(params: {
   return result;
 }
 
-async function fetchGroupEmailsForPlant(plant: string, groupName: string): Promise<string[]> {
+async function fetchGroupEmailsForPlant(
+  plant: string,
+  groupName: string
+): Promise<string[]> {
   const cacheKey = `${plant}|${groupName.toLowerCase()}`;
   const cached = groupEmailCache.get(cacheKey);
   if (cached) return cached;
@@ -125,7 +130,9 @@ async function fetchGroupEmailsForPlant(plant: string, groupName: string): Promi
 }
 
 /** Optional improvement: try to show the owner first name in email templates */
-async function fetchOwnerFirstNameByEmail(email: string | null): Promise<string | null> {
+async function fetchOwnerFirstNameByEmail(
+  email: string | null
+): Promise<string | null> {
   if (!email) return null;
   const key = email.toLowerCase();
 
@@ -294,7 +301,10 @@ async function processWarnings(): Promise<void> {
       const ownerName = await fetchOwnerFirstNameByEmail(to);
 
       // ✅ Warning phase: CC the plant technicians (owner still in TO)
-      const ccTechs = await fetchGroupEmailsForPlant(p.fixture_plant, "technician");
+      const ccTechs = await fetchGroupEmailsForPlant(
+        p.fixture_plant,
+        "technician"
+      );
       const cc = uniqEmails(ccTechs).filter((e) => e !== to);
 
       console.log(
@@ -326,7 +336,11 @@ async function processWarnings(): Promise<void> {
       sent++;
     } catch (err) {
       failed++;
-      console.error("[monitorContacts] Failed to send WARNING email for project:", p.entry_id, err);
+      console.error(
+        "[monitorContacts] Failed to send WARNING email for project:",
+        p.entry_id,
+        err
+      );
     }
   }
 
@@ -368,11 +382,17 @@ async function processLimits(): Promise<void> {
       const contacts = Number(p.contacts ?? 0);
       const critical = Math.ceil(limit * 1.1);
 
-      const ccTechs = await fetchGroupEmailsForPlant(p.fixture_plant, "technician");
+      const ccTechs = await fetchGroupEmailsForPlant(
+        p.fixture_plant,
+        "technician"
+      );
       let cc = [...ccTechs];
 
       if (contacts >= critical) {
-        const ccEngineers = await fetchGroupEmailsForPlant(p.fixture_plant, "engineer");
+        const ccEngineers = await fetchGroupEmailsForPlant(
+          p.fixture_plant,
+          "engineer"
+        );
         cc = [...cc, ...ccEngineers];
       }
 
@@ -406,7 +426,11 @@ async function processLimits(): Promise<void> {
       sent++;
     } catch (err) {
       failed++;
-      console.error("[monitorContacts] Failed to send LIMIT email for project:", p.entry_id, err);
+      console.error(
+        "[monitorContacts] Failed to send LIMIT email for project:",
+        p.entry_id,
+        err
+      );
     }
   }
 
@@ -423,7 +447,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     `method=${req.method}, windowHours=${WINDOW_HOURS}, maxEmails=${MAX_EMAILS_PER_RUN}`
   );
 
-  if (req.method !== "GET") return res.status(405).json({ message: "Method Not Allowed" });
+  if (req.method !== "GET") {
+    return res.status(405).json({ message: "Method Not Allowed" });
+  }
+
+  // ✅ HARDENING: allow only localhost (systemd timer uses http://localhost:3000)
+  const xfwd = (req.headers["x-forwarded-for"] as string) || "";
+  const remote =
+    (req.socket as any)?.remoteAddress ||
+    (req.connection as any)?.remoteAddress ||
+    "";
+
+  const isLocal =
+    remote === "127.0.0.1" ||
+    remote === "::1" ||
+    remote === "::ffff:127.0.0.1" ||
+    xfwd.startsWith("127.0.0.1") ||
+    xfwd.startsWith("::1");
+
+  if (!isLocal) {
+    console.warn("[monitorContacts] blocked non-local request:", { remote, xfwd });
+    return res.status(403).json({ message: "Forbidden" });
+  }
 
   const secret = (req.query.secret as string) || "";
   if (secret !== MONITOR_SECRET) {
@@ -440,7 +485,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await processWarnings();
     await processLimits();
 
-    console.log("=== /api/monitorContacts finished === totalEmailsSent=", emailsSentThisRun);
+    console.log(
+      "=== /api/monitorContacts finished === totalEmailsSent=",
+      emailsSentThisRun
+    );
 
     return res.status(200).json({
       ok: true,
@@ -450,6 +498,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   } catch (err) {
     console.error("[monitorContacts] Fatal error:", err);
-    return res.status(500).json({ ok: false, message: "Monitor failed", error: String(err) });
+    return res
+      .status(500)
+      .json({ ok: false, message: "Monitor failed", error: String(err) });
   }
 }
