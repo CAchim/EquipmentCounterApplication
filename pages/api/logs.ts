@@ -59,7 +59,9 @@ export default async function handler(
          *    - prefer sessionPlant
          *    - fallback to requestedPlant (so this page behaves like others)
          */
-        const effectivePlant = isAdmin ? requestedPlant : sessionPlant || requestedPlant;
+        const effectivePlant = isAdmin
+          ? requestedPlant
+          : sessionPlant || requestedPlant;
 
         if (!isAdmin && !effectivePlant) {
           return res.status(400).json({
@@ -92,6 +94,75 @@ export default async function handler(
           status: 200,
           message: "OK",
           data: raw,
+        });
+      }
+
+      case "getLogDetails": {
+        /**
+         * Fetch extra analytics info from fixture_events for a given log row.
+         * We match by fixture_plant + adapter_code + fixture_type and
+         * simply return the last few events for that equipment.
+         */
+
+        const adapterCode: string | null =
+          body.adapter_code || body.adapterCode || null;
+        const fixtureType: string | null =
+          body.fixture_type || body.fixtureType || null;
+        const logPlantFromRow: string | null =
+          body.fixture_plant || body.plant || null;
+
+        if (!adapterCode || !fixtureType) {
+          return res.status(400).json({
+            status: 400,
+            message: "Missing adapter_code or fixture_type for log details",
+          });
+        }
+
+        // Effective plant rules similar to getLogs:
+        const effectivePlant = isAdmin
+          ? (logPlantFromRow || requestedPlant)
+          : sessionPlant || logPlantFromRow || requestedPlant;
+
+        if (!isAdmin && !effectivePlant) {
+          return res.status(400).json({
+            status: 400,
+            message:
+              "Missing plant for non-admin user when fetching log details.",
+          });
+        }
+
+        const params: any[] = [adapterCode, fixtureType];
+        let sql = `
+          SELECT
+            fe.entry_id,
+            fe.fixture_plant,
+            fe.adapter_code,
+            fe.fixture_type,
+            fe.project_name,
+            fe.event_type,
+            fe.event_details,
+            fe.old_value,
+            fe.new_value,
+            fe.actor,
+            fe.created_at
+          FROM fixture_events fe
+          WHERE fe.adapter_code = ?
+            AND fe.fixture_type = ?
+        `;
+
+        if (effectivePlant) {
+          sql += " AND fe.fixture_plant = ?";
+          params.push(effectivePlant);
+        }
+
+        sql += " ORDER BY fe.created_at DESC, fe.entry_id DESC LIMIT 10";
+
+        const events = await queryDatabase(sql, params);
+
+        return res.status(200).json({
+          status: 200,
+          message: "OK",
+          data: events,
         });
       }
 

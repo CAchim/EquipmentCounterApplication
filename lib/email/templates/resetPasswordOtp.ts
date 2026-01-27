@@ -1,58 +1,149 @@
-interface ResetPasswordTemplateParams {
-  firstName?: string | null;
-  otpCode: string;
-  validMinutes: number;
-  appName?: string;
-}
+import {
+  buildEmailShell,
+  getAppUrl,
+  renderCtaButton,
+  safeName,
+} from "./_sharedEmail";
 
-export function buildResetPasswordOtpHtml(params: ResetPasswordTemplateParams): string {
-  const { firstName, otpCode, validMinutes, appName = "Equipment Counter" } = params;
+/**
+ * HTML version of the reset-password OTP email.
+ * Keeps the same signature you had before.
+ */
+export function buildResetPasswordOtpHtml(
+  userFirstName: string | null | undefined,
+  otp: string,
+  validMinutes: number = 10,
+  appUrl?: string
+): string {
+  const name = safeName(userFirstName ?? undefined);
+  const baseUrl = appUrl && appUrl.trim().length > 0 ? appUrl : getAppUrl();
 
-  const greeting = firstName ? `Hi ${firstName},` : "Hi,";
+  const bodyHtml = `
+    <h1
+      style="
+        font-size:18px;
+        margin:0 0 12px 0;
+        line-height:1.25;
+        color:#150452;
+      "
+    >
+      Password reset verification code
+    </h1>
 
-  return `
-    <div style="font-family: Arial, sans-serif; font-size: 14px; color: #222;">
-      <p>${greeting}</p>
-      <p>You requested to reset your password for <strong>${appName}</strong>.</p>
-      <p>Your one-time verification code is:</p>
-      <p style="
-        font-size: 24px;
-        letter-spacing: 4px;
-        font-weight: bold;
-        padding: 12px 16px;
-        border-radius: 8px;
-        background: #f5f5f5;
-        display: inline-block;
-      ">
-        ${otpCode}
-      </p>
-      <p>This code is valid for <strong>${validMinutes} minutes</strong>.</p>
-      <p>If you did not request a password reset, you can safely ignore this email.</p>
-      <br />
-      <p>Best regards,</p>
-      <p>The ${appName} Team</p>
+    <p
+      style="
+        font-size:14px;
+        margin:0 0 12px 0;
+        line-height:1.45;
+        color:#150452;
+      "
+    >
+      Hi ${name}, we received a request to reset the password for your account
+      in the <strong>Equipment Counter Application</strong>.
+    </p>
+
+    <p
+      style="
+        font-size:14px;
+        margin:0 0 8px 0;
+        line-height:1.45;
+        color:#150452;
+      "
+    >
+      Use the following one-time password (OTP) to confirm this action:
+    </p>
+
+    <p
+      style="
+        margin:0 0 12px 0;
+      "
+    >
+      <span
+        style="
+          display:inline-block;
+          font-family:monospace;
+          font-size:18px;
+          font-weight:700;
+          letter-spacing:0.16em;
+          padding:6px 12px;
+          border-radius:8px;
+          background:#111827;
+          color:#f9fafb;
+        "
+      >
+        ${otp}
+      </span>
+    </p>
+
+    <p
+      style="
+        font-size:13px;
+        margin:0 0 10px 0;
+        line-height:1.45;
+        color:#4b5563;
+      "
+    >
+      This code is valid for approximately <strong>${validMinutes} minutes</strong>.
+      If it expires, you will need to request a new password reset.
+    </p>
+
+    <p
+      style="
+        font-size:13px;
+        margin:0 0 14px 0;
+        line-height:1.45;
+        color:#4b5563;
+      "
+    >
+      If you did <strong>not</strong> request a password reset, you can ignore this email.
+      Your existing password will remain unchanged.
+    </p>
+
+    <div
+      style="
+        text-align:center;
+        margin-top:18px;
+        margin-bottom:10px;
+      "
+    >
+      ${renderCtaButton("Open Counter Application", baseUrl)}
     </div>
   `;
+
+  return buildEmailShell({
+    title: "Password reset verification code",
+    preheader: `Your reset password OTP code is ${otp} (valid ~${validMinutes} minutes)`,
+    headerSubtitle: "Password reset verification",
+    bodyHtml,
+  });
 }
 
-export function buildResetPasswordOtpText(params: ResetPasswordTemplateParams): string {
-  const { firstName, otpCode, validMinutes, appName = "Equipment Counter" } = params;
+/**
+ * Plain-text fallback – kept almost identical to your previous version.
+ */
+export function buildResetPasswordOtpText(
+  userFirstName: string | null | undefined,
+  otp: string,
+  validMinutes: number = 10,
+  appUrl?: string
+): string {
+  const name = userFirstName && userFirstName.trim().length > 0
+    ? userFirstName.trim()
+    : "there";
 
-  const greeting = firstName ? `Hi ${firstName},` : "Hi,";
+  const baseUrl = appUrl && appUrl.trim().length > 0 ? appUrl : getAppUrl();
 
   return [
-    greeting,
+    `Hi ${name},`,
     "",
-    `You requested to reset your password for ${appName}.`,
+    "We received a request to reset the password for your account in the Equipment Counter Application.",
     "",
-    "Your one-time verification code is:",
-    otpCode,
+    `Your one-time password (OTP) is: ${otp}`,
     "",
-    `This code is valid for ${validMinutes} minutes.`,
+    `This code is valid for about ${validMinutes} minutes. If it expires, please request a new password reset.`,
     "",
-    "If you did not request a password reset, you can safely ignore this email.",
+    `You can access the application here: ${baseUrl}`,
     "",
-    "Best regards,",
-    `The ${appName} Team`,
+    "If you did not request this reset, you can ignore this email.",
   ].join("\n");
 }

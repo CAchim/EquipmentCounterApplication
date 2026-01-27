@@ -363,7 +363,7 @@ export async function sendCounterLimitEmail(params: {
   } = params;
 
   const emailer = new EmailSender();
-  const subject = `LIMIT REACHED for ${projectName} (${adapterCode}/${fixtureType})`;
+  const subject = `Limit reached for ${projectName} (${adapterCode}/${fixtureType})`;
   const htmlContent = counterLimitTemplate({
     firstName: ownerName ?? "",
     projectName,

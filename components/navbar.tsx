@@ -5,6 +5,15 @@ import { usePlant } from "../contexts/Plantcontext";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/router";
 
+type AppUser = {
+  first_name?: string;
+  last_name?: string;
+  user_id?: string;
+  user_group?: string;
+  image?: string | null;
+  name?: string | null;
+};
+
 const Navbar: React.FC = () => {
   const { data: session } = useSession();
   const router = useRouter();
@@ -13,9 +22,19 @@ const Navbar: React.FC = () => {
 
   const isSigninPage = router.pathname === "/signin";
 
+  // Safe cast (session can be null)
+  const appUser = (session?.user ?? null) as AppUser | null;
+
+  const displayName =
+    appUser && (appUser.first_name || appUser.last_name)
+      ? `${appUser.first_name ?? ""} ${appUser.last_name ?? ""}`.trim()
+      : appUser?.name || "User";
+
+  const displayUserId = appUser?.user_id ?? "";
+
   // Fetch plants only if admin
   useEffect(() => {
-    if (session?.user?.user_group === "admin") {
+    if (appUser?.user_group === "admin") {
       fetch("/api/getPlants")
         .then((res) => res.json())
         .then((data) => {
@@ -30,7 +49,7 @@ const Navbar: React.FC = () => {
         })
         .catch(() => {});
     }
-  }, [session]);
+  }, [appUser?.user_group]);
 
   return (
     <nav className="navbar navbar-expand-lg navbar-dark bg-primary" role="navigation">
@@ -55,7 +74,7 @@ const Navbar: React.FC = () => {
           {session ? (
             <>
               {/* Admin: location icon + dropdown (left of avatar) */}
-              {session.user.user_group === "admin" && (
+              {appUser?.user_group === "admin" && (
                 <li className="nav-item dropdown me-3 order-1 flex-shrink-0">
                   <a
                     className="nav-link buttons-hover d-inline-flex align-items-center"
@@ -104,7 +123,7 @@ const Navbar: React.FC = () => {
               )}
 
               {/* Selected plant shown BETWEEN location icon and avatar */}
-              {session.user.user_group === "admin" && selectedPlant && (
+              {appUser?.user_group === "admin" && selectedPlant && (
                 <li className="me-3 order-2 flex-grow-0">
                   <span className="selected-plant-pill" title={selectedPlant}>
                     {selectedPlant}
@@ -124,7 +143,7 @@ const Navbar: React.FC = () => {
                   title="User menu"
                 >
                   <Image
-                    src={session.user.image ?? "/default-avatar.png"}
+                    src={appUser?.image ?? "/default-avatar.png"}
                     width={40}
                     height={40}
                     alt="User avatar"
@@ -132,11 +151,24 @@ const Navbar: React.FC = () => {
                     priority
                   />
                 </a>
+
                 <ul
                   className="dropdown-menu dropdown-menu-end custom-dropdown"
                   aria-labelledby="userMenuDropdown"
                 >
-                  {session.user.user_group === "admin" && (
+                  {/* User info header */}
+                  <li className="px-3 py-2 small text-muted">
+                    <div className="dropdown-user-data">{displayName}</div>
+                    {displayUserId && (
+                      <div className="text-muted">
+                        <span className="dropdown-user-data">{displayUserId}</span>
+                      </div>
+                    )}
+                  </li>
+
+                  <li><hr className="dropdown-divider" /></li>
+
+                  {appUser?.user_group === "admin" && (
                     <>
                       <li>
                         <Link href="/adduser" passHref>
@@ -148,17 +180,13 @@ const Navbar: React.FC = () => {
                           <a className="dropdown-item">Edit users</a>
                         </Link>
                       </li>
-                      <li>
-                        <hr className="dropdown-divider" />
-                      </li>
+                      <li><hr className="dropdown-divider" /></li>
                       <li>
                         <Link href="/manageplants" passHref>
                           <a className="dropdown-item">Plants management</a>
                         </Link>
                       </li>
-                      <li>
-                        <hr className="dropdown-divider" />
-                      </li>
+                      <li><hr className="dropdown-divider" /></li>
                     </>
                   )}
 
@@ -169,9 +197,7 @@ const Navbar: React.FC = () => {
                     </Link>
                   </li>
 
-                  <li>
-                    <hr className="dropdown-divider" />
-                  </li>
+                  <li><hr className="dropdown-divider" /></li>
 
                   {/* Sign out */}
                   <li>

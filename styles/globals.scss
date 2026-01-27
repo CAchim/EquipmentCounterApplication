@@ -332,6 +332,14 @@ footer {
     }
   }
 
+  .dropdown-user-data {
+    color:  #f44336;
+    border-radius: 12px;
+    font-weight: 800;
+    font-size: 1rem;
+  }
+  
+
   .dropdown-divider {
     border-color: rgba(62, 35, 155, 0.5);
   }
@@ -859,6 +867,74 @@ select.form-control {
   background: #ffffff;
   overflow: auto;
 }
+
+/* Row color palette for db_actions */
+/* ===============================
+   Logs color palette (rows + legend)
+   =============================== */
+
+/* LIMIT & WARNING UPDATED */
+.logs-row-limit-change > th,
+.logs-row-limit-change > td,
+.logs-legend-limit {
+  background-color: #d1ecf1 !important;
+  color: #0c5460 !important;
+}
+
+/* OWNER EMAIL UPDATED */
+.logs-row-owner-change > th,
+.logs-row-owner-change > td,
+.logs-legend-owner {
+  background-color: #e2d9f3 !important;
+  color: #4b2c7a !important;
+}
+
+/* CONTACTS UPDATED */
+.logs-row-contacts-updated > th,
+.logs-row-contacts-updated > td,
+.logs-legend-contacts {
+  background-color: #d4edda !important;
+  color: #155724 !important;
+}
+
+/* COUNTER RESET */
+.logs-row-counter-reset > th,
+.logs-row-counter-reset > td,
+.logs-legend-reset {
+  background-color: #fff3cd !important;
+  color: #856404 !important;
+}
+
+/* DELETES */
+.logs-legend-delete {
+  background-color: #f8d7da !important;
+  color: #721c24 !important;
+}
+
+/* ERRORS */
+.logs-legend-error {
+  background-color: #f5c6cb !important;
+  color: #721c24 !important;
+}
+
+
+/* Keep the same color on hover (override .table-hover) */
+.logs-table.table-hover tbody tr.logs-row-limit-change:hover {
+  background-color: #c4e1e7 !important;
+}
+
+.logs-table.table-hover tbody tr.logs-row-owner-change:hover {
+  background-color: #c6e3ce !important;
+}
+
+.logs-table.table-hover tbody tr.logs-row-contacts-updated:hover {
+  background-color: #d7c7f0 !important;
+}
+
+.logs-table.table-hover tbody tr.logs-row-counter-reset:hover {
+  background-color: #ffe9a6 !important;
+}
+
 
 /* Details layout */
 .logs-details dl {

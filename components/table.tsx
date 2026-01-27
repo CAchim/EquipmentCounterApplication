@@ -20,6 +20,7 @@ const ProjectsTable = (props: any) => {
   const measureRef = useRef<HTMLTableElement>(null);
   const [isMenuNarrow, setIsMenuNarrow] = useState(false);
   const [counterInfoDB, setCounterInfoDB] = useState<Project[]>([])
+  const [allProjects, setAllProjects] = useState<Project[]>([]) // 🔹 full source array
   const [displayedProjects, setDisplayedProjects] = useState<Project[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [API_Responded, setAPI_Responded] = useState<boolean>(false)
@@ -411,7 +412,9 @@ const ProjectsTable = (props: any) => {
         return priorityDiff !== 0 ? priorityDiff : b.contacts - a.contacts;
       });
 
-      setCounterInfoDB(sorted);
+      setAllProjects(sorted);          // 🔹 keep full list
+      setCounterInfoDB(sorted);        // existing behavior
+
       const total = Math.ceil(sorted.length / postPerPage.current);
       pagesCount.current = Array.from({ length: total }, (_, i) => i + 1);
       setCurrentPage(1);
@@ -444,14 +447,39 @@ const ProjectsTable = (props: any) => {
   // include trigger prop (for public view auto-refresh), admin flag, and selected plant
   }, [fetchDataDB, props.triggerFetchProp])
 
-    const checkInputValue = (e: React.FormEvent) => {
+  const checkInputValue = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const value = inputFilterValue.current?.value.trim().toLowerCase();
+    const rawValue = inputFilterValue.current?.value ?? '';
+    const value = rawValue.trim().toLowerCase();
 
-    // If input is empty, reset view from DB
+    // If input is empty, reset view from full list (no re-fetch)
     if (!value) {
-      fetchDataDB();
+      setCounterInfoDB(allProjects);
+
+      const total = Math.ceil(allProjects.length / postPerPage.current);
+      pagesCount.current = Array.from({ length: total }, (_, i) => i + 1);
+      setCurrentPage(1);
+
+      setEditMode(
+        allProjects.map((_, i) => ({
+          entry_id: i,
+          editMode: false,
+        }))
+      );
+
+      setHighlightProject(
+        allProjects.map((it, i) => ({
+          entry_id: i,
+          highlightTypeClass:
+            it.contacts > it.contacts_limit
+              ? "bg-danger"
+              : it.contacts > it.warning_at
+              ? "bg-warning"
+              : "",
+        }))
+      );
+
       return;
     }
 
@@ -462,14 +490,16 @@ const ProjectsTable = (props: any) => {
       "owner_email",
     ];
 
-    const searchedProjects: Project[] = counterInfoDB.filter((project) =>
+    const source = allProjects; // 🔹 always filter from full list
+
+    const searchedProjects: Project[] = source.filter((project) =>
       fieldsToSearch.some((field) => {
         const fieldValue = project[field];
         return fieldValue?.toString().toLowerCase().includes(value);
       })
     );
 
-    //  Use the filtered list as the new source array
+    //  Use the filtered list as the new source array for display
     setCounterInfoDB(searchedProjects);
 
     //  Rebuild pagination for the filtered list

@@ -1,166 +1,213 @@
-export function passwordChangedTemplate(firstName: string): string {
-  const safeName = firstName && firstName.trim().length > 0 ? firstName : "there";
+import { buildEmailShell, safeName } from "./_sharedEmail";
 
-  return `<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Password Changed</title>
+export interface PasswordChangedTemplateParams {
+  firstName: string;
+  email?: string;
+  changedAt?: string;   // e.g. ISO string or formatted date/time
+  ipAddress?: string;
+  userAgent?: string;
+}
 
-    <style>
-      body {
-        margin: 0;
-        padding: 0;
-        font-family: "Quicksand", system-ui, -apple-system, BlinkMacSystemFont,
-          "Segoe UI", sans-serif;
-        background-color: #f3f4f6;
-        color: #150452;
-      }
+/**
+ * Overloads:
+ *  - passwordChangedTemplate("John")
+ *  - passwordChangedTemplate({ firstName: "John", email: "...", ... })
+ */
+export function passwordChangedTemplate(firstName: string): string;
+export function passwordChangedTemplate(
+  params: PasswordChangedTemplateParams
+): string;
+export function passwordChangedTemplate(
+  input: string | PasswordChangedTemplateParams
+): string {
+  let firstName: string;
+  let email: string | undefined;
+  let changedAt: string | undefined;
+  let ipAddress: string | undefined;
+  let userAgent: string | undefined;
 
-      .wrapper {
-        width: 100%;
-        padding: 1.5rem 0;
-        box-sizing: border-box;
-      }
+  if (typeof input === "string") {
+    // Old usage: passwordChangedTemplate(firstName)
+    firstName = input;
+  } else {
+    // New usage: passwordChangedTemplate({ ... })
+    firstName = input.firstName;
+    email = input.email;
+    changedAt = input.changedAt;
+    ipAddress = input.ipAddress;
+    userAgent = input.userAgent;
+  }
 
-      .customWidth {
-        width: 95%;
-        max-width: 860px;
-        margin: 0 auto;
-      }
+  const name = safeName(firstName);
 
-      @media (min-width: 768px) {
-        .customWidth {
-          width: 75%;
-        }
-      }
+  const metaRows: string[] = [];
 
-      .card {
-        background-color: #ffffff;
-        border-radius: 12px;
-        padding: 1.75rem 1.5rem 1.5rem 1.5rem;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
-      }
+  if (changedAt) {
+    metaRows.push(`
+      <tr>
+        <th
+          align="left"
+          style="
+            padding:4px 8px 4px 0;
+            white-space:nowrap;
+            font-weight:600;
+            font-size:13px;
+          "
+        >
+          Time
+        </th>
+        <td style="padding:4px 0;">${changedAt}</td>
+      </tr>
+    `);
+  }
 
-      .header-bar {
-        border-radius: 12px 12px 0 0;
-        padding: 1rem 1.5rem;
-        margin: -1.75rem -1.5rem 1.25rem -1.5rem;
-        background: linear-gradient(
-          90deg,
-          rgba(62, 35, 155, 0.85) 0%,
-          rgba(226, 0, 22, 0.85) 15%,
-          rgba(255, 0, 0, 0.85) 25%,
-          rgba(255, 76, 0, 0.85) 35%,
-          rgba(255, 103, 0, 0.85) 45%,
-          rgba(255, 149, 0, 0.85) 55%,
-          rgba(255, 178, 0, 0.85) 65%,
-          rgba(255, 140, 0, 0.85) 75%,
-          rgba(255, 63, 0, 0.85) 85%,
-          rgba(255, 31, 0, 0.85) 100%
-        );
-        color: #fff;
-        box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.05);
-      }
+  if (email) {
+    metaRows.push(`
+      <tr>
+        <th
+          align="left"
+          style="
+            padding:4px 8px 4px 0;
+            white-space:nowrap;
+            font-weight:600;
+            font-size:13px;
+          "
+        >
+          Account
+        </th>
+        <td style="padding:4px 0;">${email}</td>
+      </tr>
+    `);
+  }
 
-      .header-title {
-        font-size: 1.2rem;
-        font-weight: 600;
-        margin: 0;
-      }
+  if (ipAddress) {
+    metaRows.push(`
+      <tr>
+        <th
+          align="left"
+          style="
+            padding:4px 8px 4px 0;
+            white-space:nowrap;
+            font-weight:600;
+            font-size:13px;
+          "
+        >
+          IP address
+        </th>
+        <td style="padding:4px 0;">${ipAddress}</td>
+      </tr>
+    `);
+  }
 
-      .header-subtitle {
-        font-size: 0.9rem;
-        margin: 0.25rem 0 0 0;
-        opacity: 0.9;
-      }
+  if (userAgent) {
+    metaRows.push(`
+      <tr>
+        <th
+          align="left"
+          style="
+            padding:4px 8px 4px 0;
+            white-space:nowrap;
+            font-weight:600;
+            font-size:13px;
+          "
+        >
+          Device / browser
+        </th>
+        <td style="padding:4px 0;">${userAgent}</td>
+      </tr>
+    `);
+  }
 
-      .section-title {
-        font-size: 1rem;
-        font-weight: 600;
-        margin-top: 1.5rem;
-        margin-bottom: 0.5rem;
-        color: #150452;
-      }
-
-      .alert-ok {
-        margin: 1rem 0 0.75rem 0;
-        padding: 0.8rem 1rem;
-        border-radius: 10px;
-        background: #ecfdf5;
-        border: 1px solid #6ee7b7;
-        color: #065f46;
-        font-size: 0.9rem;
-      }
-
-      .alert-warning {
-        margin-top: 0.75rem;
-        font-size: 0.9rem;
-        color: #b91c1c;
-      }
-
-      .footer {
-        margin: 1rem -1.5rem -1.5rem -1.5rem;
-        padding: 0.4rem 1.5rem;
-        font-size: 0.75rem;
-        background: linear-gradient(
-          90deg,
-          rgba(62, 35, 155, 0.85) 0%,
-          rgba(226, 0, 22, 0.85) 15%,
-          rgba(255, 0, 0, 0.85) 25%,
-          rgba(255, 76, 0, 0.85) 35%,
-          rgba(255, 103, 0, 0.85) 45%,
-          rgba(255, 149, 0, 0.85) 55%,
-          rgba(255, 178, 0, 0.85) 65%,
-          rgba(255, 140, 0, 0.85) 75%,
-          rgba(255, 63, 0, 0.85) 85%,
-          rgba(255, 31, 0, 0.85) 100%
-        );
-        color: #fff;
-        border-radius: 0 0 12px 12px;
-        text-align: center;
-      }
-    </style>
-  </head>
-
-  <body>
-    <div class="wrapper">
-      <div class="customWidth">
-        <div class="card">
-          <div class="header-bar">
-            <p class="header-title">Counter Application</p>
-            <p class="header-subtitle">Password change confirmation</p>
-          </div>
-
-          <h1 style="font-size: 1.1rem; margin: 0 0 0.75rem 0;">
-            Hello ${safeName},
-          </h1>
-
-          <p style="font-size: 0.95rem; margin: 0 0 0.75rem 0;">
-            This is a confirmation that your password for the Counter Application
-            has been changed successfully.
-          </p>
-
-          <div class="alert-ok">
-            If you made this change, no further action is required.
-          </div>
-
-          <p class="alert-warning">
-            If you did <strong>not</strong> change your password, please contact
-            your local admin or Counter Application administrator.
-          </p>
-
-          <p style="font-size: 0.9rem; margin-top: 1rem;">
-            Thank you for keeping your account secure.
-          </p>
-
-          <div class="footer">
-            &copy;&nbsp;Aumovio Romania&nbsp;- Counter Application
-          </div>
-        </div>
-      </div>
+  const metaTable =
+    metaRows.length > 0
+      ? `
+    <div
+      style="
+        margin-top:10px;
+        padding:14px 16px;
+        border-radius:10px;
+        background:#f5f7fb;
+        border:1px solid #e0e0e0;
+        font-size:14px;
+        line-height:1.45;
+        color:#150452;
+      "
+    >
+      <table
+        role="presentation"
+        width="100%"
+        style="
+          border-collapse:collapse;
+          border-spacing:0;
+          font-size:14px;
+          line-height:1.45;
+          color:#150452;
+        "
+      >
+        ${metaRows.join("")}
+      </table>
     </div>
-  </body>
-</html>`;
+  `
+      : "";
+
+  const bodyHtml = `
+    <h1
+      style="
+        font-size:18px;
+        margin:0 0 12px 0;
+        line-height:1.25;
+        color:#150452;
+      "
+    >
+      Your password has been changed
+    </h1>
+
+    <p
+      style="
+        font-size:14px;
+        margin:0 0 12px 0;
+        line-height:1.45;
+        color:#150452;
+      "
+    >
+      Hi ${name}, this is a confirmation that the password for your account
+      in the <strong>Equipment Counter Application</strong> has been changed.
+    </p>
+
+    ${metaTable}
+
+    <p
+      style="
+        font-size:13px;
+        margin:16px 0 10px 0;
+        line-height:1.45;
+        color:#4b5563;
+      "
+    >
+      If you made this change, no further action is required.
+    </p>
+
+    <p
+      style="
+        font-size:13px;
+        margin:0 0 16px 0;
+        line-height:1.45;
+        color:#b91c1c;
+      "
+    >
+      If you <strong>did not</strong> change your password, please contact your
+      local admin or Counter Application administrator immediately.
+    </p>
+  `;
+
+  const preheader = email
+    ? `The password for ${email} was changed in the Counter Application.`
+    : `The password for your Counter Application account was changed.`;
+
+  return buildEmailShell({
+    title: "Password changed",
+    preheader,
+    headerSubtitle: "Password changed confirmation",
+    bodyHtml,
+  });
 }
