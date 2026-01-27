@@ -592,7 +592,7 @@ const LogsPage = () => {
         <title>Logs | AUMOVIO</title>
       </Head>
 
-      {/* local styles for “full color” legend + hover scale */}
+      {/* eslint-disable-next-line react/no-unknown-property */}
       <style jsx>{`
         .logs-topbar {
           gap: 10px;
