@@ -191,7 +191,7 @@ export const authOptions = {
       );
 
       if (rows.length === 0) {
-        console.error("[session] user not found during refetch");
+        console.error("📦 [session] user not found during refetch");
         throw new Error("Something went wrong");
       }
 

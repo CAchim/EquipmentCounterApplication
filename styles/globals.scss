@@ -434,6 +434,37 @@ thead th {
   word-break: break-word;
 }
 
+// Adjust these heights if your navbar/footer are taller/shorter
+$app-navbar-height-desktop: 64px;
+$app-footer-height-desktop: 48px;
+$app-navbar-height-mobile: 56px;
+$app-footer-height-mobile: 56px;
+
+// Wrapper (optional, but nice)
+.app-shell {
+  min-height: 100vh;
+  position: relative;
+}
+
+// Main content area – this is the key part
+.app-main {
+  // Enough padding so content starts below navbar and ends above footer
+  padding-top: $app-navbar-height-desktop;
+  padding-bottom: $app-footer-height-desktop;
+
+  // Avoid horizontal scrollbars from random content
+  overflow-x: hidden;
+}
+
+// On phones (portrait), tweak a bit
+@media (max-width: 575px) {
+  .app-main {
+    padding-top: $app-navbar-height-mobile;
+    padding-bottom: $app-footer-height-mobile;
+  }
+}
+
+
 .input-fields {
   background-color: #ffffff;
   color: #150452;
