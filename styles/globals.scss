@@ -601,21 +601,32 @@ thead th {
   align-items: center;
 }
 
+/* Logo wrapper */
 .navbar-logo-link {
-  padding-left: 15vw;  /* or any % / px value */
+  padding-left: 0;              // default: keep logo close to the left
 }
 
+/* On large screens, give it a bit of breathing room */
+@media (min-width: 1200px) {
+  .navbar-logo-link {
+    padding-left: 6vw;          // much smaller than 15vw
+  }
+}
+
+/* Logo size */
 .navbar-logo {
-  max-height: 35px;
+  max-height: 32px;
   height: auto;
   width: auto;
 }
 
+/* Slightly smaller on very small phones */
 @media (max-width: 576px) {
   .navbar-logo {
-    max-height: 28px;
+    max-height: 26px;
   }
 }
+
 
 .plant-dropdown {
   max-height: 200px;   // adjust height to your liking
@@ -699,10 +710,11 @@ select.form-control {
 
 @media (max-width: 576px) {
   .selected-plant-pill {
-    max-width: clamp(100px, 40vw, 200px);
-    font-size: 0.9rem;
+    max-width: clamp(90px, 35vw, 180px);
+    font-size: 0.8rem;
   }
 }
+
 
 /* ===== Plants Management page ===== */
 

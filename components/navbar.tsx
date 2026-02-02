@@ -52,8 +52,11 @@ const Navbar: React.FC = () => {
   }, [appUser?.user_group]);
 
   return (
-    <nav className="navbar navbar-expand-lg navbar-dark bg-primary" role="navigation">
-      <div className="container-fluid px-0 d-flex align-items-center">
+    <nav
+      className="navbar navbar-expand-lg navbar-dark bg-primary"
+      role="navigation"
+    >
+      <div className="container-fluid px-0 d-flex align-items-center justify-content-between flex-nowrap">
         {/* Brand on the left */}
         <Link href={session ? "/editprojects" : "/"} passHref>
           <a className="navbar-brand navbar-logo-link d-flex align-items-center">
@@ -73,9 +76,9 @@ const Navbar: React.FC = () => {
         <ul className="ms-auto navbar-right list-unstyled d-flex align-items-center mb-0 flex-nowrap">
           {session ? (
             <>
-              {/* Admin: location icon + dropdown (left of avatar) */}
+              {/* Admin: plant selector */}
               {appUser?.user_group === "admin" && (
-                <li className="nav-item dropdown me-3 order-1 flex-shrink-0">
+                <li className="nav-item dropdown me-3 flex-shrink-0">
                   <a
                     className="nav-link buttons-hover d-inline-flex align-items-center"
                     href="#"
@@ -106,7 +109,9 @@ const Navbar: React.FC = () => {
                         Show All
                       </button>
                     </li>
-                    <li><hr className="dropdown-divider" /></li>
+                    <li>
+                      <hr className="dropdown-divider" />
+                    </li>
                     {plants.map((p, idx) => (
                       <li key={idx}>
                         <button
@@ -122,17 +127,17 @@ const Navbar: React.FC = () => {
                 </li>
               )}
 
-              {/* Selected plant shown BETWEEN location icon and avatar */}
+              {/* Selected plant */}
               {appUser?.user_group === "admin" && selectedPlant && (
-                <li className="me-3 order-2 flex-grow-0">
+                <li className="me-3 flex-shrink-0">
                   <span className="selected-plant-pill" title={selectedPlant}>
                     {selectedPlant}
                   </span>
                 </li>
               )}
 
-              {/* Avatar + dropdown menu (rightmost) */}
-              <li className="nav-item dropdown me-3 order-3 flex-shrink-0">
+              {/* User avatar */}
+              <li className="nav-item dropdown me-3 flex-shrink-0">
                 <a
                   className="nav-link buttons-hover"
                   href="#"
@@ -156,17 +161,20 @@ const Navbar: React.FC = () => {
                   className="dropdown-menu dropdown-menu-end custom-dropdown"
                   aria-labelledby="userMenuDropdown"
                 >
-                  {/* User info header */}
                   <li className="px-3 py-2 small text-muted">
                     <div className="dropdown-user-data">{displayName}</div>
                     {displayUserId && (
                       <div className="text-muted">
-                        <span className="dropdown-user-data">{displayUserId}</span>
+                        <span className="dropdown-user-data">
+                          {displayUserId}
+                        </span>
                       </div>
                     )}
                   </li>
 
-                  <li><hr className="dropdown-divider" /></li>
+                  <li>
+                    <hr className="dropdown-divider" />
+                  </li>
 
                   {appUser?.user_group === "admin" && (
                     <>
@@ -180,26 +188,30 @@ const Navbar: React.FC = () => {
                           <a className="dropdown-item">Edit users</a>
                         </Link>
                       </li>
-                      <li><hr className="dropdown-divider" /></li>
+                      <li>
+                        <hr className="dropdown-divider" />
+                      </li>
                       <li>
                         <Link href="/manageplants" passHref>
                           <a className="dropdown-item">Plants management</a>
                         </Link>
                       </li>
-                      <li><hr className="dropdown-divider" /></li>
+                      <li>
+                        <hr className="dropdown-divider" />
+                      </li>
                     </>
                   )}
 
-                  {/* Reset password */}
                   <li>
                     <Link href="/changepassword" passHref>
                       <a className="dropdown-item">Reset password</a>
                     </Link>
                   </li>
 
-                  <li><hr className="dropdown-divider" /></li>
+                  <li>
+                    <hr className="dropdown-divider" />
+                  </li>
 
-                  {/* Sign out */}
                   <li>
                     <button
                       className="dropdown-item"
@@ -213,7 +225,7 @@ const Navbar: React.FC = () => {
             </>
           ) : (
             !isSigninPage && (
-              <li className="nav-item pt-3 pt-md-0 me-3">
+              <li className="nav-item me-3">
                 <div className="signin-wrapper">
                   <Link href="/signin" passHref>
                     <button className="btn-signin menubuttons">
