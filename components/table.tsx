@@ -533,82 +533,85 @@ const ProjectsTable = (props: any) => {
   if (API_Responded) {
     return (
       <>
-        <div className="d-flex justify-content-between align-items-center mx-4 py-2"
-        >
-        <form
-          onSubmit={checkInputValue}
-          className="d-flex align-items-center"
-        >
-          <input
-            ref={inputFilterValue}
-            name="inputFilterValue"
-            type="text"
-            className="form-control fw-bolder "
-            style={{ width: '470px' }}
-            placeholder="Search..."
-            aria-label="Filter"
-          ></input>
-          <button
-            className="btn btn-primary scaleEffect fs-6 fw-bolder w-auto mx-2 my-2"
-            type="submit"
+        {/* 🔹 Updated toolbar: responsive on mobile, no fixed width inline */}
+        <div className="projects-toolbar d-flex justify-content-between align-items-center mx-4 py-2">
+          <form
+            onSubmit={checkInputValue}
+            className="projects-search-form d-flex align-items-center"
           >
-            Search
-            <Image
-              src="/search.svg"
-              className="img-fluid pt-2 ms-1"
-              width={buttonWidth}
-              height={buttonHeight}
-              alt="filterPic"
-              priority
-            ></Image>
-          </button>
-        </form>
-        {(session?.user?.user_group === 'admin' ||
-          session?.user?.user_group === 'engineer') && (
-          <div className="dropdown position-relative" style={{ overflow: 'visible', zIndex: 1000 }}>
+            <input
+              ref={inputFilterValue}
+              name="inputFilterValue"
+              type="text"
+              className="form-control fw-bolder projects-search-input"
+              placeholder="Search..."
+              aria-label="Filter"
+            />
             <button
-              className="btn btn-link buttons-hover"
-              type="button"
-              id="actionMenu"
-              data-bs-toggle="dropdown"
-              aria-expanded="false"
-              title="Menu"
+              className="btn btn-primary scaleEffect fs-6 fw-bolder w-auto mx-2 my-2"
+              type="submit"
             >
-              <Image src="/menu.svg" width={45} height={45} alt="Actions" priority />
+              Search
+              <Image
+                src="/search.svg"
+                className="img-fluid pt-2 ms-1"
+                width={buttonWidth}
+                height={buttonHeight}
+                alt="filterPic"
+                priority
+              />
             </button>
-            <ul className="dropdown-menu dropdown-menu-end custom-dropdown" aria-labelledby="actionMenu">
-              <li><h6 className="dropdown-header">Choose an action</h6></li>
-              <li><Link href="/createproject"><a className="dropdown-item">Add equipment</a></Link></li>
-              <li><hr className="dropdown-divider" /></li>
-              <li><Link href="/addtestprobes"><a className="dropdown-item">Add test probes</a></Link></li>
-              <li><Link href="/edittps"><a className="dropdown-item">Edit test probes</a></Link></li>
-              <li><hr className="dropdown-divider" /></li>
-              <li><Link href="/logs" passHref>
-                  <a className="dropdown-item d-flex align-items-center justify-content-between">                    
-                    <span>View logs</span>
-                    <Image 
-                      src="/history-log.svg" 
-                      width={35} 
-                      height={20} 
-                      alt="Logs" 
-                      className="me-2"
-                    />
-                  </a>
-                </Link>
-              </li>
-              <li><hr className="dropdown-divider" /></li>
-              <li><Link href="/analytics" passHref><a className="dropdown-item">Analytics and forecast</a></Link></li>
-              {(session?.user?.user_group === 'admin') && (
-                <div>
-                  <li><hr className="dropdown-divider" /></li>
-                  <li><Link href="/updatecontacts" passHref><a className="dropdown-item">Update contacts</a></Link></li> 
-                </div>   
-              )}        
-            </ul>
-          </div>
+          </form>
+          {(session?.user?.user_group === 'admin' ||
+            session?.user?.user_group === 'engineer') && (
+            <div
+              className="dropdown position-relative projects-toolbar-menu"
+              style={{ overflow: 'visible', zIndex: 1000 }}
+            >
+              <button
+                className="btn btn-link buttons-hover"
+                type="button"
+                id="actionMenu"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+                title="Menu"
+              >
+                <Image src="/menu.svg" width={45} height={45} alt="Actions" priority />
+              </button>
+              <ul className="dropdown-menu dropdown-menu-end custom-dropdown" aria-labelledby="actionMenu">
+                <li><h6 className="dropdown-header">Choose an action</h6></li>
+                <li><Link href="/createproject"><a className="dropdown-item">Add equipment</a></Link></li>
+                <li><hr className="dropdown-divider" /></li>
+                <li><Link href="/addtestprobes"><a className="dropdown-item">Add test probes</a></Link></li>
+                <li><Link href="/edittps"><a className="dropdown-item">Edit test probes</a></Link></li>
+                <li><hr className="dropdown-divider" /></li>
+                <li><Link href="/logs" passHref>
+                    <a className="dropdown-item d-flex align-items-center justify-content-between">                    
+                      <span>View logs</span>
+                      <Image 
+                        src="/history-log.svg" 
+                        width={35} 
+                        height={20} 
+                        alt="Logs" 
+                        className="me-2"
+                      />
+                    </a>
+                  </Link>
+                </li>
+                <li><hr className="dropdown-divider" /></li>
+                <li><Link href="/analytics" passHref><a className="dropdown-item">Analytics and forecast</a></Link></li>
+                {(session?.user?.user_group === 'admin') && (
+                  <div>
+                    <li><hr className="dropdown-divider" /></li>
+                    <li><Link href="/updatecontacts" passHref><a className="dropdown-item">Update contacts</a></Link></li> 
+                  </div>   
+                )}        
+              </ul>
+            </div>
 
-        )}
+          )}
         </div>
+
         <div style={{ position: 'absolute', top: 0, left: 0, height: 0, overflow: 'hidden', visibility: 'hidden' }}>
           <table ref={measureRef}>
             <thead>

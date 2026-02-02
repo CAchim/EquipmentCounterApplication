@@ -434,37 +434,6 @@ thead th {
   word-break: break-word;
 }
 
-// Adjust these heights if your navbar/footer are taller/shorter
-$app-navbar-height-desktop: 64px;
-$app-footer-height-desktop: 48px;
-$app-navbar-height-mobile: 56px;
-$app-footer-height-mobile: 56px;
-
-// Wrapper (optional, but nice)
-.app-shell {
-  min-height: 100vh;
-  position: relative;
-}
-
-// Main content area – this is the key part
-.app-main {
-  // Enough padding so content starts below navbar and ends above footer
-  padding-top: $app-navbar-height-desktop;
-  padding-bottom: $app-footer-height-desktop;
-
-  // Avoid horizontal scrollbars from random content
-  overflow-x: hidden;
-}
-
-// On phones (portrait), tweak a bit
-@media (max-width: 575px) {
-  .app-main {
-    padding-top: $app-navbar-height-mobile;
-    padding-bottom: $app-footer-height-mobile;
-  }
-}
-
-
 .input-fields {
   background-color: #ffffff;
   color: #150452;
@@ -1036,21 +1005,69 @@ select.form-control {
   font-weight: 700;
 }
 
-/* Sticky footer layout wrapper */
+/* Sticky footer layout wrapper + navbar offset */
+$app-navbar-height-desktop: 1px;   // tweak this to match real navbar height
+$app-footer-height-desktop: 5px;
+$app-navbar-height-mobile: 72px;    // slightly larger if navbar wraps more on mobile
+$app-footer-height-mobile: 56px;
+
 .app-shell {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-/* Main grows, footer stays at bottom */
+/* Main grows, footer stays at bottom, and content starts below fixed navbar */
 .app-main {
   flex: 1;
-  min-width: 0; /* helps Recharts ResponsiveContainer inside flex layouts */
+  min-width: 0;           /* helps Recharts ResponsiveContainer inside flex layouts */
+  padding-top: $app-navbar-height-desktop;
+  padding-bottom: $app-footer-height-desktop;
+  overflow-x: hidden;     /* avoid random horizontal scrollbars */
+}
+
+@media (max-width: 575px) {
+  .app-main {
+    padding-top: $app-navbar-height-mobile;
+    padding-bottom: $app-footer-height-mobile;
+  }
 }
 
 /* Hide built-in Windows/Edge password reveal + clear buttons */
 input[type="password"]::-ms-reveal,
 input[type="password"]::-ms-clear {
   display: none;
+}
+
+$bp-phone: 575px;
+
+.projects-toolbar {
+  @media (max-width: $bp-phone) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    margin-inline: 0.5rem;
+  }
+}
+
+.projects-search-form {
+  @media (max-width: $bp-phone) {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+.projects-search-input {
+  width: 470px;
+  max-width: 100%;
+
+  @media (max-width: $bp-phone) {
+    width: 100%;
+  }
+}
+
+.projects-toolbar-menu {
+  @media (max-width: $bp-phone) {
+    align-self: flex-end;
+  }
 }
