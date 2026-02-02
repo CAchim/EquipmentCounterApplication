@@ -167,8 +167,6 @@ export const authOptions = {
       console.log("📦 [session] token has user?", !!token?.user);
 
       if (token?.user) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
         session.user = token.user;
         return session;
       }
@@ -193,12 +191,10 @@ export const authOptions = {
       );
 
       if (rows.length === 0) {
-        console.error("📦 [session] user not found during refetch");
+        console.error("[session] user not found during refetch");
         throw new Error("Something went wrong");
       }
 
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
       session.user = normalizeUserRow(rows[0]);
       return session;
     },
