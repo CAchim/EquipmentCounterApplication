@@ -24,7 +24,7 @@ export function safeName(firstName?: string | null): string {
  * Base URL for the app, with a sensible default for dev.
  */
 export function getAppUrl(): string {
-  return process.env.APP_BASE_URL || "https://tm-fixture-counter/";
+  return process.env.APP_BASE_URL || "https://tm00094vmx.tm.ro.int.automotive-wan.com";
 }
 
 /**
