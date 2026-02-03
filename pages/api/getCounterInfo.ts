@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getServerSession } from "next-auth/next";
 import type { NextAuthOptions } from "next-auth";
 import { authOptions } from "./auth/[...nextauth]";
+import { sendEquipmentCreatedEmail } from "../../lib/email/emailService";
 import queryDatabase from "../../lib/database";
 
 import {
@@ -259,8 +260,56 @@ export default async function handler(
             ]
           );
 
-          // Optional: you can log CREATED here if you want
-          // await safeAddFixtureEvent({ fixturePlant: targetPlant, adapterCode: adapter_code, fixtureType: fixture_type, eventType: "CREATED", actor: who });
+          // Fire-and-forget: log the creation event (optional)
+          /*
+          (async () => {
+            try {
+              await safeAddFixtureEvent({
+                fixturePlant: targetPlant,
+                adapterCode: adapter_code,
+                fixtureType: fixture_type,
+                eventType: "CREATED",
+                eventDetails: "Project created",
+                oldValue: null,
+                newValue: project_name,
+                actor: who,
+              });
+            } catch (err) {
+              console.error("[createProject] safeAddFixtureEvent error:", err);
+            }
+          })();
+          */
+
+          // Fire-and-forget: send "equipment created" email to owner (if any)
+          const ownerEmailForEmail =
+            owner_email && owner_email.length ? owner_email : null;
+          const fixturePlantForEmail = targetPlant || fixture_plant;
+
+          if (ownerEmailForEmail) {
+            (async () => {
+              try {
+                const firstName = await getUserFirstName(ownerEmailForEmail);
+
+                await sendEquipmentCreatedEmail({
+                  to: ownerEmailForEmail,
+                  firstName,
+                  projectName: project_name,
+                  adapterCode: adapter_code,
+                  fixtureType: fixture_type,
+                  fixturePlant: fixturePlantForEmail,
+                  warningAt: warnNum,
+                  limit: limitNum,
+                  createdBy: who,
+                  triggeredBy: who,
+                });
+              } catch (err) {
+                console.error(
+                  "[createProject] sendEquipmentCreatedEmail error:",
+                  err
+                );
+              }
+            })();
+          }
 
           return res.status(200).json({ message: result });
         } catch (e: any) {

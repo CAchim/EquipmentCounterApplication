@@ -13,6 +13,7 @@ import {
 } from "./templates/ownerChangedEmail";
 import { limitsChangedTemplate } from "./templates/limitsChangedEmail";
 import { projectDeletedTemplate } from "./templates/projectDeletedEmail";
+import { equipmentCreatedTemplate } from "./templates/equipmentCreatedEmail";
 
 /* =========================================================
    Helper: log_email_event wrapper
@@ -43,7 +44,8 @@ type IssueType =
   | "OTP"
   | "WELCOME"
   | "PW_CHANGED"
-  | "PROJECT_DELETED";
+  | "PROJECT_DELETED"
+  | "PROJECT_CREATED";
 
 type SentToGroup = "ADMIN" | "ENGINEER" | "OWNER" | "OTHER";
 
@@ -742,3 +744,88 @@ export async function sendProjectDeletedEmail(params: {
 
   return result;
 }
+
+/* =========================================================
+   10. PROJECT CREATED EMAIL
+   ========================================================= */
+
+/**
+ * Send notification when a project/fixture is added.
+ */
+
+export async function sendEquipmentCreatedEmail(params: {
+  to: string | null | undefined;
+  firstName?: string | null;
+  projectName: string;
+  adapterCode: string;
+  fixtureType: string;
+  fixturePlant: string;
+  warningAt?: number | null;
+  limit?: number | null;
+  createdBy: string;
+  triggeredBy?: string | null;
+}): Promise<boolean> {
+  const {
+    to,
+    firstName,
+    projectName,
+    adapterCode,
+    fixtureType,
+    fixturePlant,
+    warningAt,
+    limit,
+    createdBy,
+    triggeredBy,
+  } = params;
+
+  const emailer = new EmailSender();
+  const subject = `New equipment added: ${adapterCode} / ${fixtureType}`;
+
+  const htmlContent = equipmentCreatedTemplate({
+    firstName: firstName ?? null,
+    projectName,
+    adapterCode,
+    fixtureType,
+    fixturePlant,
+    warningAt: warningAt ?? null,
+    limit: limit ?? null,
+  });
+
+  console.log(
+    "[sendEquipmentCreatedEmail] Preparing to send equipment-created email to:",
+    to
+  );
+
+  const result = await emailer.sendEmail(to, subject, htmlContent);
+
+  if (!result) {
+    console.error(
+      "[sendEquipmentCreatedEmail] Failed to send equipment-created email to:",
+      to
+    );
+  } else {
+    console.log(
+      "[sendEquipmentCreatedEmail] Equipment-created email sent successfully to:",
+      to
+    );
+  }
+
+  await logEmailEvent({
+    emailTo: to,
+    subject,
+    adapterCode,
+    fixtureType,
+    fixturePlant,
+    projectName,
+    issueType: "PROJECT_CREATED",
+    sentToGroup: "OWNER",
+    status: result ? "SENT" : "FAILED",
+    errorMessage: result
+      ? null
+      : "Failed to send equipment-created email",
+    triggeredBy: triggeredBy ?? createdBy ?? null,
+  });
+
+  return result;
+}
+
