@@ -1,11 +1,11 @@
 import {
   buildEmailShell,
-  getAppUrl,
   renderCtaButton,
   safeName,
+  getAppUrl,
 } from "./_sharedEmail";
 
-interface EquipmentCreatedTemplateParams {
+export interface EquipmentCreatedTemplateParams {
   firstName: string | null;
   projectName: string;
   adapterCode: string;
@@ -15,6 +15,9 @@ interface EquipmentCreatedTemplateParams {
   limit?: number | null;
 }
 
+/**
+ * Template for notifying the owner that a new equipment was created.
+ */
 export function equipmentCreatedTemplate(
   params: EquipmentCreatedTemplateParams
 ): string {
@@ -28,100 +31,70 @@ export function equipmentCreatedTemplate(
     limit,
   } = params;
 
-  const name = safeName(firstName);
+  const name = safeName(firstName || "");
   const appUrl = getAppUrl();
 
-  // You can tune this deep-link later to match your routing
-  const detailUrl = `${appUrl}?adapter_code=${encodeURIComponent(
-    adapterCode
-  )}&fixture_type=${encodeURIComponent(fixtureType)}`;
-
-  const thresholdsRows =
+  const thresholdsHtml =
     warningAt != null || limit != null
       ? `
-        <tr>
-          <td style="padding: 4px 0; font-size: 14px; color: #555555;">
+        <div style="margin-top:8px;">
+          <div>
             <strong>Warning at:</strong>
-          </td>
-          <td style="padding: 4px 0; font-size: 14px; color: #555555;">
-            ${
-              warningAt != null
-                ? warningAt.toLocaleString("en-US")
-                : "<span style='color:#999999'>not set</span>"
-            }
-          </td>
-        </tr>
-        <tr>
-          <td style="padding: 4px 0; font-size: 14px; color: #555555;">
+            &nbsp;${warningAt != null ? warningAt.toLocaleString("en-US") : "not set"}
+          </div>
+          <div>
             <strong>Limit:</strong>
-          </td>
-          <td style="padding: 4px 0; font-size: 14px; color: #555555;">
-            ${
-              limit != null
-                ? limit.toLocaleString("en-US")
-                : "<span style='color:#999999'>not set</span>"
-            }
-          </td>
-        </tr>
+            &nbsp;${limit != null ? limit.toLocaleString("en-US") : "not set"}
+          </div>
+        </div>
       `
       : "";
 
   const bodyHtml = `
-    <p style="margin: 0 0 12px 0; font-size: 15px; color: #333333;">
-      Hi ${name},
+    <h1 style="font-size:18px;margin:0 0 12px 0;line-height:1.25;color:#150452;">
+      New equipment registered
+    </h1>
+
+    <p style="font-size:14px;margin:0 0 12px 0;line-height:1.45;color:#150452;">
+      Hi ${name}, a new project fixture has been registered in the
+      <strong>Equipment Counter Application</strong>, and you are set as the owner.
     </p>
 
-    <p style="margin: 0 0 12px 0; font-size: 15px; color: #333333;">
-      A new equipment has been registered in the Counter Application.
-    </p>
-
-    <table
-      role="presentation"
-      width="100%"
-      cellpadding="0"
-      cellspacing="0"
+    <div
       style="
-        border-collapse: collapse;
-        margin: 16px 0;
-        font-size: 14px;
-        color: #333333;
+        margin-top:10px;
+        padding:14px 16px;
+        border-radius:10px;
+        background:#f5f7fb;
+        border:1px solid #e0e0e0;
+        font-size:14px;
+        line-height:1.45;
+        color:#150452;
       "
     >
-      <tr>
-        <td style="padding: 4px 0; width: 140px;"><strong>Project name:</strong></td>
-        <td style="padding: 4px 0;">${projectName}</td>
-      </tr>
-      <tr>
-        <td style="padding: 4px 0;"><strong>Adapter code:</strong></td>
-        <td style="padding: 4px 0;">${adapterCode}</td>
-      </tr>
-      <tr>
-        <td style="padding: 4px 0;"><strong>Fixture type:</strong></td>
-        <td style="padding: 4px 0;">${fixtureType}</td>
-      </tr>
-      <tr>
-        <td style="padding: 4px 0;"><strong>Plant:</strong></td>
-        <td style="padding: 4px 0;">${fixturePlant}</td>
-      </tr>
-      ${thresholdsRows}
-    </table>
+      <div><strong>Project:</strong> ${projectName}</div>
+      <div>
+        <strong>Adapter code:</strong> ${adapterCode}
+        &nbsp;|&nbsp;
+        <strong>Fixture type:</strong> ${fixtureType}
+      </div>
+      <div><strong>Plant:</strong> ${fixturePlant}</div>
+      ${thresholdsHtml}
+    </div>
 
-    <p style="margin: 0 0 16px 0; font-size: 14px; color: #555555;">
-      You can open the equipment in the Counter Application using the button below.
+    <p style="font-size:14px;margin:14px 0 0 0;line-height:1.45;color:#150452;">
+      You will receive usage and counter notifications for this fixture according to the configured thresholds.
     </p>
 
-    ${renderCtaButton("Open equipment in Counter Application", detailUrl)}
-
-    <p style="margin: 16px 0 0 0; font-size: 12px; color: #999999;">
-      This is an automated notification from the Counter Application.
-    </p>
+    <div style="text-align:center;margin-top:18px;margin-bottom:10px;">
+      ${renderCtaButton("Open Counter Application", appUrl)}
+    </div>
   `;
 
   return buildEmailShell({
-    title: "New equipment registered",
-    preheader: `Equipment ${adapterCode} / ${fixtureType} has been added to the Counter Application.`,
-    headerSubtitle: fixturePlant ? `Plant: ${fixturePlant}` : "",
+    title: "New Equipment Created",
+    headerSubtitle: "A new fixture was added to your plant",
+    preheader: `New fixture: ${projectName} (${adapterCode} / ${fixtureType})`,
     bodyHtml,
-    primaryTitle: "Counter Application",
   });
 }
