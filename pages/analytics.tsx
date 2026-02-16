@@ -156,6 +156,8 @@ export default function AnalyticsPage() {
   const [eventSortKey, setEventSortKey] = useState<SortKey>("created_at");
   const [eventSortDir, setEventSortDir] = useState<SortDir>("desc");
 
+  const [lastLoadedAt, setLastLoadedAt] = useState<string>("");
+
   const chartBox = useElementSize<HTMLDivElement>();
 
   useEffect(() => setMounted(true), []);
@@ -205,6 +207,7 @@ export default function AnalyticsPage() {
         setDaily([]);
         setDemandWeek([]);
         setDemandMonth([]);
+        setLastLoadedAt("");
         setErr(String(e?.message || e));
       }
     })();
@@ -223,6 +226,21 @@ export default function AnalyticsPage() {
       return true;
     });
   }, [fixtures, projectFilter, adapterFilter, fixtureFilter]);
+
+  // ✅ Keep selection valid when filters change (prevents "page looks broken")
+  useEffect(() => {
+    if (!filteredFixtures.length) return;
+
+    const exists = filteredFixtures.some(
+      (x) => `${x.adapter_code}||${x.fixture_type}` === selectedFixtureKey
+    );
+
+    if (!selectedFixtureKey || !exists) {
+      const first = filteredFixtures[0];
+      setSelectedFixtureKey(`${first.adapter_code}||${first.fixture_type}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredFixtures]);
 
   const selectedFixture = useMemo(() => {
     const [a, f] = selectedFixtureKey.split("||");
@@ -255,7 +273,11 @@ export default function AnalyticsPage() {
         fetchJson<{
           week: { demandByPn: DemandAggRow[] };
           month: { demandByPn: DemandAggRow[] };
-        }>(`/api/analytics/probe-demand?plant=${encodeURIComponent(selectedPlant)}&lookback=${encodeURIComponent(String(lookbackHours))}`),
+        }>(
+          `/api/analytics/probe-demand?plant=${encodeURIComponent(selectedPlant)}&lookback=${encodeURIComponent(
+            String(lookbackHours)
+          )}`
+        ),
       ]);
 
       setForecast(jf.forecast ?? null);
@@ -264,6 +286,8 @@ export default function AnalyticsPage() {
       setDaily(Array.isArray(jd.daily) ? jd.daily : []);
       setDemandWeek(Array.isArray(jdem.week?.demandByPn) ? jdem.week.demandByPn : []);
       setDemandMonth(Array.isArray(jdem.month?.demandByPn) ? jdem.month.demandByPn : []);
+
+      setLastLoadedAt(new Date().toLocaleString());
     } catch (e: any) {
       setErr(String(e?.message || e));
       setForecast(null);
@@ -272,6 +296,7 @@ export default function AnalyticsPage() {
       setDaily([]);
       setDemandWeek([]);
       setDemandMonth([]);
+      setLastLoadedAt("");
     } finally {
       setLoading(false);
     }
@@ -343,6 +368,7 @@ export default function AnalyticsPage() {
               setDaily([]);
               setDemandWeek([]);
               setDemandMonth([]);
+              setLastLoadedAt("");
             }}
             style={{ padding: "8px 10px", minWidth: 200 }}
           >
@@ -405,23 +431,36 @@ export default function AnalyticsPage() {
 
         <div>
           <div style={{ fontSize: 12, opacity: 0.85, color: "#fff" }}>Forecast lookback (hours)</div>
-          <select value={lookbackHours} onChange={(e) => setLookbackHours(Number(e.target.value))} style={{ padding: "8px 10px" }}>
+          <select
+            value={lookbackHours}
+            onChange={(e) => setLookbackHours(Number(e.target.value))}
+            style={{ padding: "8px 10px" }}
+          >
             <option value={12}>12</option>
             <option value={24}>24</option>
             <option value={48}>48</option>
             <option value={72}>72</option>
-            <option value={168}>168</option>
+            <option value={168}>168 (7d)</option>
+            <option value={336}>336 (14d)</option>
+            <option value={720}>720 (30d)</option>
           </select>
         </div>
 
         <div>
           <div style={{ fontSize: 12, opacity: 0.85, color: "#fff" }}>Series range (hours)</div>
-          <select value={seriesHours} onChange={(e) => setSeriesHours(Number(e.target.value))} style={{ padding: "8px 10px" }}>
+          <select
+            value={seriesHours}
+            onChange={(e) => setSeriesHours(Number(e.target.value))}
+            style={{ padding: "8px 10px" }}
+          >
             <option value={24}>24</option>
             <option value={72}>72</option>
-            <option value={168}>168</option>
-            <option value={336}>336</option>
-            <option value={720}>720</option>
+            <option value={168}>168 (7d)</option>
+            <option value={336}>336 (14d)</option>
+            <option value={720}>720 (30d)</option>
+            <option value={1440}>1440 (60d)</option>
+            <option value={2160}>2160 (90d)</option>
+            <option value={8760}>8760 (365d)</option>
           </select>
         </div>
 
@@ -429,13 +468,22 @@ export default function AnalyticsPage() {
           <button onClick={loadAnalytics} disabled={loading || !selectedFixture} style={{ padding: "8px 14px" }}>
             {loading ? "Loading..." : "Refresh"}
           </button>
+          {lastLoadedAt ? (
+            <div className="label" style={{ marginTop: 6, color: "#fff", opacity: 0.85 }}>
+              Last refresh: {lastLoadedAt}
+            </div>
+          ) : null}
         </div>
       </div>
 
       {err && (
         <div className="analytics-card" style={{ padding: 10, borderRadius: 12, marginBottom: 12 }}>
-          <div className="label" style={{ marginBottom: 6 }}>Error</div>
-          <div className="value" style={{ fontSize: 14, fontWeight: 600 }}>{err}</div>
+          <div className="label" style={{ marginBottom: 6 }}>
+            Error
+          </div>
+          <div className="value" style={{ fontSize: 14, fontWeight: 600 }}>
+            {err}
+          </div>
         </div>
       )}
 
@@ -443,28 +491,43 @@ export default function AnalyticsPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, marginBottom: 14 }}>
         <div className="analytics-card p-3 rounded text-white">
           <div className="label">Current</div>
-          <div className="value" style={{ fontSize: 22 }}>{currentContacts}</div>
-          <div className="label" style={{ marginTop: 6 }}>warning: {warningLine ?? "—"} · limit: {limitLine ?? "—"}</div>
+          <div className="value" style={{ fontSize: 22 }}>
+            {currentContacts}
+          </div>
+          <div className="label" style={{ marginTop: 6 }}>
+            warning: {warningLine ?? "—"} · limit: {limitLine ?? "—"}
+          </div>
         </div>
 
         <div className="analytics-card p-3 rounded text-white">
           <div className="label">Burn rate</div>
-          <div className="value" style={{ fontSize: 22 }}>{fmtRate(forecast?.avg_contacts_per_hour)}</div>
+          <div className="value" style={{ fontSize: 22 }}>
+            {fmtRate(forecast?.avg_contacts_per_hour)}
+          </div>
           <div className="label" style={{ marginTop: 6 }}>
-            window: {forecast?.window_start ? safeStr(forecast.window_start) : "—"} → {forecast?.window_end ? safeStr(forecast.window_end) : "—"}
+            window: {forecast?.window_start ? safeStr(forecast.window_start) : "—"} →{" "}
+            {forecast?.window_end ? safeStr(forecast.window_end) : "—"}
           </div>
         </div>
 
         <div className="analytics-card p-3 rounded text-white">
           <div className="label">ETA to warning</div>
-          <div className="value" style={{ fontSize: 22 }}>{fmtHours(forecast?.eta_warning_hours)}</div>
-          <div className="label" style={{ marginTop: 6 }}>based on avg positive deltas</div>
+          <div className="value" style={{ fontSize: 22 }}>
+            {fmtHours(forecast?.eta_warning_hours)}
+          </div>
+          <div className="label" style={{ marginTop: 6 }}>
+            based on avg positive deltas
+          </div>
         </div>
 
         <div className="analytics-card p-3 rounded text-white">
           <div className="label">ETA to limit</div>
-          <div className="value" style={{ fontSize: 22 }}>{fmtHours(forecast?.eta_limit_hours)}</div>
-          <div className="label" style={{ marginTop: 6 }}>based on avg positive deltas</div>
+          <div className="value" style={{ fontSize: 22 }}>
+            {fmtHours(forecast?.eta_limit_hours)}
+          </div>
+          <div className="label" style={{ marginTop: 6 }}>
+            based on avg positive deltas
+          </div>
         </div>
       </div>
 
@@ -476,9 +539,15 @@ export default function AnalyticsPage() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ textAlign: "left" }}>
-                  <th className="label" style={{ padding: "8px 6px" }}>Day</th>
-                  <th className="label" style={{ padding: "8px 6px" }}>Resets</th>
-                  <th className="label" style={{ padding: "8px 6px" }}>TP events</th>
+                  <th className="label" style={{ padding: "8px 6px" }}>
+                    Day
+                  </th>
+                  <th className="label" style={{ padding: "8px 6px" }}>
+                    Resets
+                  </th>
+                  <th className="label" style={{ padding: "8px 6px" }}>
+                    TP events
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -492,7 +561,9 @@ export default function AnalyticsPage() {
                   ))
                 ) : (
                   <tr>
-                    <td className="label" style={{ padding: 8 }} colSpan={3}>No daily data.</td>
+                    <td className="label" style={{ padding: 8 }} colSpan={3}>
+                      No daily data.
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -523,7 +594,11 @@ export default function AnalyticsPage() {
                     </tr>
                   ))
                 ) : (
-                  <tr><td className="label" style={{ padding: 8 }} colSpan={3}>No predicted maintenance this week.</td></tr>
+                  <tr>
+                    <td className="label" style={{ padding: 8 }} colSpan={3}>
+                      No predicted maintenance this week.
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -549,7 +624,11 @@ export default function AnalyticsPage() {
                     </tr>
                   ))
                 ) : (
-                  <tr><td className="label" style={{ padding: 8 }} colSpan={3}>No predicted maintenance this month.</td></tr>
+                  <tr>
+                    <td className="label" style={{ padding: 8 }} colSpan={3}>
+                      No predicted maintenance this month.
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -561,10 +640,7 @@ export default function AnalyticsPage() {
       <div className="analytics-card p-3 rounded text-white" style={{ marginBottom: 14 }}>
         <div style={{ fontWeight: 700, marginBottom: 8 }}>Contacts (hourly)</div>
 
-        <div
-          ref={chartBox.ref}
-          style={{ width: "100%", height: 320, minWidth: 0 }}
-        >
+        <div ref={chartBox.ref} style={{ width: "100%", height: 320, minWidth: 0 }}>
           {/* Render only when mounted + container has valid dimensions */}
           {mounted && chartBox.width > 10 && chartBox.height > 10 && series.length ? (
             <ResponsiveContainer width="100%" height="100%">
