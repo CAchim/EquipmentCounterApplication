@@ -10,7 +10,6 @@ const Tooltip = dynamic(() => import("recharts").then((m) => m.Tooltip), { ssr: 
 const CartesianGrid = dynamic(() => import("recharts").then((m) => m.CartesianGrid), { ssr: false });
 const ReferenceLine = dynamic(() => import("recharts").then((m) => m.ReferenceLine), { ssr: false });
 const Legend = dynamic(() => import("recharts").then((m) => m.Legend), { ssr: false });
-const ReferenceDot = dynamic(() => import("recharts").then((m) => m.ReferenceDot), { ssr: false });
 
 type Plant = { entry_id: number; plant_name: string };
 
@@ -36,6 +35,8 @@ type ForecastRow = {
   avg_contacts_per_hour: number;
   eta_warning_hours: number | null;
   eta_limit_hours: number | null;
+  // Optional “pro” guardrail fields if you add them later:
+  // buckets_used?: number | null;
 };
 
 type SeriesPoint = {
@@ -44,10 +45,6 @@ type SeriesPoint = {
   warning_at: number;
   contacts_limit: number;
   resets: number;
-
-  // derived
-  delta?: number;
-  forecast_contacts?: number;
 };
 
 type EventRow = {
@@ -62,13 +59,8 @@ type EventRow = {
 };
 
 type DailyRow = { day: string; resets: number; tp_events: number };
+
 type DemandAggRow = { part_number: string; total_qty: number; fixtures: number };
-
-type SortKey = "created_at" | "event_type" | "actor" | "old_value" | "new_value" | "event_details";
-type SortDir = "asc" | "desc";
-type TabKey = "overview" | "demand";
-
-const MAX_FIXTURE_OPTIONS = 500;
 
 function fmtHours(h: number | null | undefined) {
   if (h == null || !Number.isFinite(h)) return "—";
@@ -76,13 +68,16 @@ function fmtHours(h: number | null | undefined) {
   if (h < 48) return `${h.toFixed(1)}h`;
   return `${(h / 24).toFixed(1)}d`;
 }
+
 function fmtRate(r: number | null | undefined) {
   if (r == null || !Number.isFinite(r)) return "—";
   return `${r.toFixed(2)}/h`;
 }
+
 function safeStr(v: any) {
   return typeof v === "string" ? v : String(v ?? "");
 }
+
 function splitDateTime(ts: string) {
   const s = safeStr(ts);
   const m = s.replace("T", " ").split(".");
@@ -90,18 +85,6 @@ function splitDateTime(ts: string) {
   const parts = base.split(" ");
   if (parts.length >= 2) return { date: parts[0], time: parts[1] };
   return { date: base, time: "" };
-}
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-function formatHourTs(d: Date) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:00`;
-}
-function parseHourTs(s: string) {
-  const [date, time] = s.split(" ");
-  const [y, m, d] = date.split("-").map(Number);
-  const hh = Number((time || "00:00").split(":")[0] || 0);
-  return new Date(y, (m || 1) - 1, d || 1, hh || 0, 0, 0, 0);
 }
 
 /** Robust fetch JSON */
@@ -120,32 +103,13 @@ async function fetchJson<T = any>(url: string): Promise<T> {
   return JSON.parse(text) as T;
 }
 
-function useElementSize<T extends HTMLElement>() {
-  const ref = useRef<T | null>(null);
-  const [size, setSize] = useState({ width: 0, height: 0 });
+type SortKey = "created_at" | "event_type" | "actor" | "old_value" | "new_value" | "event_details";
+type SortDir = "asc" | "desc";
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    const ro = new ResizeObserver((entries) => {
-      const cr = entries[0]?.contentRect;
-      if (!cr) return;
-      const w = Math.floor(cr.width);
-      const h = Math.floor(cr.height);
-      setSize((prev) => (prev.width === w && prev.height === h ? prev : { width: w, height: h }));
-    });
-
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  return { ref, ...size };
-}
+type TabKey = "overview" | "probe";
 
 export default function AnalyticsPage() {
   const [mounted, setMounted] = useState(false);
-  const [chartReady, setChartReady] = useState(false);
 
   const [plants, setPlants] = useState<Plant[]>([]);
   const [selectedPlant, setSelectedPlant] = useState<string>("Timisoara");
@@ -153,9 +117,10 @@ export default function AnalyticsPage() {
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [selectedFixtureKey, setSelectedFixtureKey] = useState<string>("");
 
-  // split search + dropdown
+  // ✅ New: single search box (debounced) + stable dropdown
   const [fixtureSearch, setFixtureSearch] = useState("");
   const [fixtureSearchDebounced, setFixtureSearchDebounced] = useState("");
+  const fixtureSearchRef = useRef<HTMLInputElement | null>(null);
 
   const [lookbackHours, setLookbackHours] = useState<number>(24);
   const [seriesHours, setSeriesHours] = useState<number>(168);
@@ -175,67 +140,37 @@ export default function AnalyticsPage() {
 
   const [lastLoadedAt, setLastLoadedAt] = useState<string>("");
 
-  const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  // ✅ Chart UX toggles
   const [showDeltaLine, setShowDeltaLine] = useState<boolean>(true);
-  const [showForecastLine, setShowForecastLine] = useState<boolean>(true);
 
-  const chartBox = useElementSize<HTMLDivElement>();
+  // ✅ Tabs (probe demand moved out)
+  const [tab, setTab] = useState<TabKey>("overview");
 
-  // ✅ keyboard support refs
-  const fixtureSelectRef = useRef<HTMLSelectElement | null>(null);
+  useEffect(() => setMounted(true), []);
 
+  // Debounce fixture search so dropdown doesn’t jump / lag
   useEffect(() => {
-    setMounted(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => setChartReady(true)));
-  }, []);
-
-  // debounce search
-  useEffect(() => {
-    const t = setTimeout(() => setFixtureSearchDebounced(fixtureSearch.trim()), 150);
+    const t = setTimeout(() => setFixtureSearchDebounced(fixtureSearch.trim()), 160);
     return () => clearTimeout(t);
   }, [fixtureSearch]);
 
-  const fixtureDisplay = (x: Fixture) => `${x.project_name} — ${x.adapter_code} / ${x.fixture_type}`;
-
-  const selectedFixture = useMemo(() => {
-    const [a, f] = selectedFixtureKey.split("||");
-    return fixtures.find((x) => x.adapter_code === a && x.fixture_type === f) || null;
-  }, [fixtures, selectedFixtureKey]);
-
-  const filteredFixtures = useMemo(() => {
-    const q = fixtureSearchDebounced.toLowerCase();
-    if (!q) return fixtures;
-    return fixtures.filter((x) => {
-      const hay = `${x.project_name} ${x.adapter_code} ${x.fixture_type}`.toLowerCase();
-      return hay.includes(q);
-    });
-  }, [fixtures, fixtureSearchDebounced]);
-
-  const filteredCount = filteredFixtures.length;
-  const shownCount = Math.min(filteredCount, MAX_FIXTURE_OPTIONS);
-  const isCapped = filteredCount > MAX_FIXTURE_OPTIONS;
-
-  // Ensure selection stays valid when search changes
+  // Keyboard shortcuts:
+  // - "/" focuses search (unless typing in another input)
+  // - "Esc" clears search when focused in it
   useEffect(() => {
-    if (!fixtures.length) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTypingField =
+        !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT");
 
-    // if nothing selected yet -> pick first
-    if (!selectedFixtureKey) {
-      if (fixtures[0]) setSelectedFixtureKey(`${fixtures[0].adapter_code}||${fixtures[0].fixture_type}`);
-      return;
-    }
-
-    // if a search filter exists and selection not in filtered list -> pick first match
-    if (fixtureSearchDebounced) {
-      const existsInFiltered = filteredFixtures.some(
-        (x) => `${x.adapter_code}||${x.fixture_type}` === selectedFixtureKey
-      );
-      if (!existsInFiltered && filteredFixtures[0]) {
-        setSelectedFixtureKey(`${filteredFixtures[0].adapter_code}||${filteredFixtures[0].fixture_type}`);
+      if (e.key === "/" && !isTypingField) {
+        e.preventDefault();
+        fixtureSearchRef.current?.focus();
       }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fixtureSearchDebounced, filteredFixtures, fixtures]);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   // Load plants
   useEffect(() => {
@@ -262,22 +197,22 @@ export default function AnalyticsPage() {
 
     (async () => {
       try {
-        const j = await fetchJson<{ fixtures: Fixture[] }>(
-          `/api/analytics/fixtures?plant=${encodeURIComponent(selectedPlant)}`
-        );
+        const j = await fetchJson<{ fixtures: Fixture[] }>(`/api/analytics/fixtures?plant=${encodeURIComponent(selectedPlant)}`);
         const list = Array.isArray(j.fixtures) ? j.fixtures : [];
         setFixtures(list);
 
-        // reset search between plants
+        // reset search and selection when plant changes (clean UX)
         setFixtureSearch("");
         setFixtureSearchDebounced("");
+        setSelectedFixtureKey(list.length ? `${list[0].adapter_code}||${list[0].fixture_type}` : "");
 
-        if (list.length) {
-          const first = list[0];
-          setSelectedFixtureKey(`${first.adapter_code}||${first.fixture_type}`);
-        } else {
-          setSelectedFixtureKey("");
-        }
+        setForecast(null);
+        setSeries([]);
+        setEvents([]);
+        setDaily([]);
+        setDemandWeek([]);
+        setDemandMonth([]);
+        setLastLoadedAt("");
       } catch (e: any) {
         setFixtures([]);
         setSelectedFixtureKey("");
@@ -294,6 +229,34 @@ export default function AnalyticsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPlant]);
 
+  const filteredFixtures = useMemo(() => {
+    const q = fixtureSearchDebounced.toLowerCase();
+    if (!q) return fixtures;
+
+    // Search in: project, adapter, fixture_type
+    return fixtures.filter((x) => {
+      const hay = `${x.project_name ?? ""} ${x.adapter_code ?? ""} ${x.fixture_type ?? ""}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [fixtures, fixtureSearchDebounced]);
+
+  // Keep selection valid when filtered list changes
+  useEffect(() => {
+    if (!filteredFixtures.length) return;
+
+    const exists = filteredFixtures.some((x) => `${x.adapter_code}||${x.fixture_type}` === selectedFixtureKey);
+    if (!selectedFixtureKey || !exists) {
+      const first = filteredFixtures[0];
+      setSelectedFixtureKey(`${first.adapter_code}||${first.fixture_type}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredFixtures]);
+
+  const selectedFixture = useMemo(() => {
+    const [a, f] = selectedFixtureKey.split("||");
+    return filteredFixtures.find((x) => x.adapter_code === a && x.fixture_type === f) || null;
+  }, [filteredFixtures, selectedFixtureKey]);
+
   async function loadAnalytics() {
     if (!selectedPlant || !selectedFixture) return;
 
@@ -307,36 +270,17 @@ export default function AnalyticsPage() {
         `&fixture=${encodeURIComponent(selectedFixture.fixture_type)}`;
 
       const [jf, js, je, jd, jdem] = await Promise.all([
-        fetchJson<{ forecast: ForecastRow | null }>(
-          `/api/analytics/forecast?${base}&lookback=${encodeURIComponent(String(lookbackHours))}`
-        ),
-        fetchJson<{ series: SeriesPoint[] }>(
-          `/api/analytics/series?${base}&hours=${encodeURIComponent(String(seriesHours))}`
-        ),
+        fetchJson<{ forecast: ForecastRow | null }>(`/api/analytics/forecast?${base}&lookback=${encodeURIComponent(String(lookbackHours))}`),
+        fetchJson<{ series: SeriesPoint[] }>(`/api/analytics/series?${base}&hours=${encodeURIComponent(String(seriesHours))}`),
         fetchJson<{ events: EventRow[] }>(`/api/analytics/events?${base}&limit=80`),
-        fetchJson<{ daily: DailyRow[] }>(
-          `/api/analytics/plant-daily?plant=${encodeURIComponent(selectedPlant)}&days=14`
-        ),
-        fetchJson<{
-          week: { demandByPn: DemandAggRow[] };
-          month: { demandByPn: DemandAggRow[] };
-        }>(
-          `/api/analytics/probe-demand?plant=${encodeURIComponent(selectedPlant)}&lookback=${encodeURIComponent(
-            String(lookbackHours)
-          )}`
+        fetchJson<{ daily: DailyRow[] }>(`/api/analytics/plant-daily?plant=${encodeURIComponent(selectedPlant)}&days=14`),
+        fetchJson<{ week: { demandByPn: DemandAggRow[] }; month: { demandByPn: DemandAggRow[] } }>(
+          `/api/analytics/probe-demand?plant=${encodeURIComponent(selectedPlant)}&lookback=${encodeURIComponent(String(lookbackHours))}`
         ),
       ]);
 
       setForecast(jf.forecast ?? null);
-
-      const baseSeries = Array.isArray(js.series) ? js.series : [];
-      const withDelta: SeriesPoint[] = baseSeries.map((p, idx) => {
-        const prev = idx > 0 ? baseSeries[idx - 1] : null;
-        const delta = prev ? Number(p.contacts ?? 0) - Number(prev.contacts ?? 0) : 0;
-        return { ...p, delta: Number.isFinite(delta) ? delta : 0 };
-      });
-      setSeries(withDelta);
-
+      setSeries(Array.isArray(js.series) ? js.series : []);
       setEvents(Array.isArray(je.events) ? je.events : []);
       setDaily(Array.isArray(jd.daily) ? jd.daily : []);
       setDemandWeek(Array.isArray(jdem.week?.demandByPn) ? jdem.week.demandByPn : []);
@@ -357,7 +301,7 @@ export default function AnalyticsPage() {
     }
   }
 
-  // auto-load
+  // auto-load when selection changes
   useEffect(() => {
     if (selectedFixture) loadAnalytics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -367,81 +311,7 @@ export default function AnalyticsPage() {
   const limitLine = forecast?.contacts_limit ?? selectedFixture?.contacts_limit ?? null;
   const currentContacts = forecast?.current_contacts ?? selectedFixture?.contacts ?? 0;
 
-  const chartData = useMemo(() => {
-    const base = series || [];
-    if (!base.length) return [];
-
-    if (!showForecastLine) return base;
-
-    const rate = Number(forecast?.avg_contacts_per_hour);
-    if (!Number.isFinite(rate) || rate <= 0) return base;
-
-    const last = base[base.length - 1];
-    const lastTs = parseHourTs(last.sample_ts);
-    const lastContacts = Number(last.contacts ?? 0);
-
-    const lim = typeof limitLine === "number" ? limitLine : null;
-    const maxHours = Math.min(24 * 30, Math.max(24, seriesHours));
-    const projected: SeriesPoint[] = [];
-
-    for (let i = 1; i <= maxHours; i++) {
-      const d = new Date(lastTs.getTime());
-      d.setHours(d.getHours() + i);
-      const c = lastContacts + rate * i;
-
-      projected.push({
-        sample_ts: formatHourTs(d),
-        contacts: NaN as any,
-        warning_at: last.warning_at,
-        contacts_limit: last.contacts_limit,
-        resets: last.resets,
-        forecast_contacts: c,
-      });
-
-      if (lim != null && Number.isFinite(lim) && c >= lim) break;
-    }
-
-    return [...base, ...projected];
-  }, [series, forecast?.avg_contacts_per_hour, showForecastLine, limitLine, seriesHours]);
-
-  const etaWarnTs = useMemo(() => {
-    const h = forecast?.eta_warning_hours;
-    if (h == null || !Number.isFinite(h) || h <= 0) return null;
-    if (!series?.length) return null;
-    const last = series[series.length - 1];
-    const lastTs = parseHourTs(last.sample_ts);
-    const d = new Date(lastTs.getTime());
-    d.setHours(d.getHours() + Math.ceil(h));
-    return formatHourTs(d);
-  }, [forecast?.eta_warning_hours, series]);
-
-  const etaLimitTs = useMemo(() => {
-    const h = forecast?.eta_limit_hours;
-    if (h == null || !Number.isFinite(h) || h <= 0) return null;
-    if (!series?.length) return null;
-    const last = series[series.length - 1];
-    const lastTs = parseHourTs(last.sample_ts);
-    const d = new Date(lastTs.getTime());
-    d.setHours(d.getHours() + Math.ceil(h));
-    return formatHourTs(d);
-  }, [forecast?.eta_limit_hours, series]);
-
-  // y-domain with padding
-  const yDomainContacts = useMemo(() => {
-    return [
-      (min: number) => {
-        if (!Number.isFinite(min)) return 0;
-        const pad = Math.max(10, Math.abs(min) * 0.01);
-        return Math.max(0, min - pad);
-      },
-      (max: number) => {
-        if (!Number.isFinite(max)) return "auto";
-        const pad = Math.max(10, Math.abs(max) * 0.01);
-        return max + pad;
-      },
-    ] as any;
-  }, []);
-
+  // Sorted events
   const sortedEvents = useMemo(() => {
     const dir = eventSortDir === "asc" ? 1 : -1;
     const arr = [...events];
@@ -477,84 +347,166 @@ export default function AnalyticsPage() {
     setEventSortDir((d) => (d === "asc" ? "desc" : "asc"));
   }
 
-  const helpIcon = (title: string) => (
+  // --- Chart data enhancements ---
+  type ChartRow = SeriesPoint & {
+    delta_h?: number | null;
+    forecast_warn?: number | null;
+    forecast_limit?: number | null;
+  };
+
+  const chartData: ChartRow[] = useMemo(() => {
+    const base: ChartRow[] = (Array.isArray(series) ? series : []).map((p, idx, arr) => {
+      const prev = idx > 0 ? arr[idx - 1] : null;
+      const delta = prev ? Number(p.contacts ?? 0) - Number(prev.contacts ?? 0) : null;
+      return {
+        ...p,
+        delta_h: delta != null && Number.isFinite(delta) ? delta : null,
+        forecast_warn: null,
+        forecast_limit: null,
+      };
+    });
+
+    if (!base.length) return base;
+
+    // Forecast straight line to warning/limit (adds extra points so it’s visible)
+    const last = base[base.length - 1];
+    const lastTs = new Date(String(last.sample_ts).replace(" ", "T"));
+    const lastContacts = Number(last.contacts ?? 0);
+
+    const rate = Number(forecast?.avg_contacts_per_hour ?? 0);
+    const etaW = forecast?.eta_warning_hours;
+    const etaL = forecast?.eta_limit_hours;
+
+    const makeTs = (d: Date) => {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:00`;
+    };
+
+    const out = [...base];
+
+    // Warning forecast line
+    if (Number.isFinite(rate) && rate > 0 && etaW != null && Number.isFinite(etaW) && etaW > 0 && warningLine != null) {
+      const dt = new Date(lastTs.getTime() + etaW * 3600 * 1000);
+      out.push({
+        ...last,
+        sample_ts: makeTs(dt),
+        contacts: Number(warningLine),
+        delta_h: null,
+        forecast_warn: Number(warningLine),
+        forecast_limit: null,
+      });
+      // mark start point as well so line draws from last point
+      out[out.length - 2] = { ...out[out.length - 2], forecast_warn: lastContacts };
+    }
+
+    // Limit forecast line
+    if (Number.isFinite(rate) && rate > 0 && etaL != null && Number.isFinite(etaL) && etaL > 0 && limitLine != null) {
+      const dt = new Date(lastTs.getTime() + etaL * 3600 * 1000);
+      out.push({
+        ...last,
+        sample_ts: makeTs(dt),
+        contacts: Number(limitLine),
+        delta_h: null,
+        forecast_warn: null,
+        forecast_limit: Number(limitLine),
+      });
+      // mark start point so it draws from last point
+      // find “last real point” (base last) in out
+      const startIdx = base.length - 1;
+      out[startIdx] = { ...out[startIdx], forecast_limit: lastContacts };
+    }
+
+    // ensure chronological order
+    out.sort((a, b) => new Date(String(a.sample_ts).replace(" ", "T")).getTime() - new Date(String(b.sample_ts).replace(" ", "T")).getTime());
+    return out;
+  }, [series, forecast, warningLine, limitLine]);
+
+  // ---- UI helpers ----
+  const Hint = ({ text }: { text: string }) => (
     <span
-      title={title}
+      title={text}
       style={{
-        marginLeft: 6,
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
         width: 16,
         height: 16,
-        borderRadius: 99,
-        border: "1px solid rgba(255,255,255,0.45)",
+        marginLeft: 6,
+        borderRadius: 999,
         fontSize: 11,
+        fontWeight: 800,
+        background: "rgba(255,255,255,0.16)",
+        color: "#fff",
         cursor: "help",
-        opacity: 0.9,
+        userSelect: "none",
       }}
     >
       ?
     </span>
   );
 
-  const Field: React.FC<{
-    label: React.ReactNode;
-    helper?: React.ReactNode;
-    children: React.ReactNode;
-    span?: number;
-  }> = ({ label, helper, children, span }) => (
-    <div style={{ display: "grid", gridTemplateRows: "18px auto 18px", gap: 6, gridColumn: span ? `span ${span}` : undefined }}>
-      <div style={{ fontSize: 12, opacity: 0.85, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-        {label}
-      </div>
-      <div style={{ display: "flex", alignItems: "center" }}>{children}</div>
-      <div className="label" style={{ color: "#fff", opacity: 0.85, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-        {helper ?? "\u00A0"}
-      </div>
-    </div>
-  );
+  const filterGridStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "minmax(180px, 260px) minmax(320px, 1fr) minmax(220px, 360px) minmax(220px, 360px) minmax(160px, 220px) minmax(160px, 220px) minmax(180px, 280px)",
+    gap: 12,
+    alignItems: "end",
+    marginBottom: 14,
+  };
 
-  const canRenderChart =
-    mounted &&
-    chartReady &&
-    chartBox.width > 50 &&
-    chartBox.height > 50 &&
-    Array.isArray(chartData) &&
-    chartData.length > 0;
+  const fieldStyle: React.CSSProperties = {
+    padding: "8px 10px",
+    width: "100%",
+    borderRadius: 10,
+    border: "1px solid rgba(255,255,255,0.18)",
+    outline: "none",
+  };
 
-  const dropdownHelper = fixtureSearchDebounced
-    ? `Showing ${shownCount} of ${filteredCount} matches${isCapped ? ` (capped at ${MAX_FIXTURE_OPTIONS})` : ""}`
-    : `Showing ${shownCount} fixtures${fixtures.length > MAX_FIXTURE_OPTIONS ? ` (render cap ${MAX_FIXTURE_OPTIONS})` : ""}`;
+  const labelStyle: React.CSSProperties = { fontSize: 12, opacity: 0.85, color: "#fff", display: "flex", alignItems: "center" };
 
   return (
-    <div className="mx-4 my-4">
+    <div className="mx-4 my-4" style={{ minWidth: 0 }}>
       <h2 style={{ marginBottom: 12, color: "#fff" }}>Analytics</h2>
 
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+        <button
+          onClick={() => setTab("overview")}
+          style={{
+            padding: "8px 12px",
+            borderRadius: 999,
+            border: "1px solid rgba(255,255,255,0.18)",
+            background: tab === "overview" ? "rgba(255,255,255,0.16)" : "transparent",
+            color: "#fff",
+            fontWeight: 700,
+          }}
+        >
+          Overview
+        </button>
+        <button
+          onClick={() => setTab("probe")}
+          style={{
+            padding: "8px 12px",
+            borderRadius: 999,
+            border: "1px solid rgba(255,255,255,0.18)",
+            background: tab === "probe" ? "rgba(255,255,255,0.16)" : "transparent",
+            color: "#fff",
+            fontWeight: 700,
+          }}
+        >
+          Probe demand
+        </button>
+      </div>
+
       {/* Filters */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(220px, 260px) 1fr minmax(220px, 320px) minmax(220px, 320px) minmax(200px, 240px)",
-          gap: 12,
-          alignItems: "end",
-          marginBottom: 14,
-        }}
-      >
-        <Field label={<>Plant {helpIcon("Select which plant you are viewing.")}</>}>
+      <div style={filterGridStyle}>
+        <div>
+          <div style={labelStyle}>
+            Plant <Hint text="Select plant. Engineers usually see only their plant. Admin can switch." />
+          </div>
           <select
             value={selectedPlant}
-            onChange={(e) => {
-              setSelectedPlant(e.target.value);
-              setForecast(null);
-              setSeries([]);
-              setEvents([]);
-              setDaily([]);
-              setDemandWeek([]);
-              setDemandMonth([]);
-              setLastLoadedAt("");
-            }}
-            style={{ padding: "8px 10px", width: "100%" }}
+            onChange={(e) => setSelectedPlant(e.target.value)}
+            style={fieldStyle}
           >
             {plants.length ? (
               plants.map((p) => (
@@ -566,53 +518,63 @@ export default function AnalyticsPage() {
               <option value="Timisoara">Timisoara</option>
             )}
           </select>
-        </Field>
+        </div>
 
-        <Field
-          label={
-            <>
-              Fixture search {helpIcon("Type any part of project / adapter / fixture type. ArrowDown focuses dropdown. Enter selects first match.")}
-            </>
-          }
-          helper={<span>{selectedFixture ? `Selected: ${fixtureDisplay(selectedFixture)}` : "—"}</span>}
-        >
-          <div style={{ width: "100%", display: "grid", gridTemplateColumns: "1fr 110px", gap: 10, alignItems: "center" }}>
-            <input
-              value={fixtureSearch}
-              onChange={(e) => setFixtureSearch(e.target.value)}
-              placeholder="Type to filter fixtures..."
-              style={{ padding: "8px 10px", width: "100%" }}
-              onKeyDown={(e) => {
-                if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  fixtureSelectRef.current?.focus();
-                }
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  if (filteredFixtures[0]) {
-                    setSelectedFixtureKey(`${filteredFixtures[0].adapter_code}||${filteredFixtures[0].fixture_type}`);
-                    fixtureSelectRef.current?.focus();
-                  }
-                }
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => {
+        {/* Search (separate from dropdown) */}
+        <div>
+          <div style={labelStyle}>
+            Fixture search <Hint text="Type project / adapter / type. Press Esc to clear. Press / to focus from anywhere." />
+          </div>
+          <input
+            ref={fixtureSearchRef}
+            value={fixtureSearch}
+            onChange={(e) => setFixtureSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.preventDefault();
                 setFixtureSearch("");
                 setFixtureSearchDebounced("");
-              }}
-              title="Clear search filter"
-              style={{ padding: "8px 10px", width: "100%" }}
-              disabled={!fixtureSearch.trim()}
-            >
-              Clear
-            </button>
+              }
+            }}
+            placeholder="Search project / adapter / fixture type…"
+            style={fieldStyle}
+          />
+          <div className="label" style={{ marginTop: 6, color: "#fff", opacity: 0.85 }}>
+            {selectedFixture ? (
+              <>Selected: {selectedFixture.project_name} — {selectedFixture.adapter_code} / {selectedFixture.fixture_type}</>
+            ) : (
+              <>No fixture selected</>
+            )}
           </div>
-        </Field>
+        </div>
 
-        <Field label={<>Forecast lookback (hours) {helpIcon("Window used to compute burn rate (avg contacts/hour).")}</>}>
-          <select value={lookbackHours} onChange={(e) => setLookbackHours(Number(e.target.value))} style={{ padding: "8px 10px", width: "100%" }}>
+        {/* Dropdown stays stable (no jumping) */}
+        <div style={{ gridColumn: "span 2" }}>
+          <div style={labelStyle}>
+            Fixture <Hint text="Dropdown is filtered by the search box. It won’t move around while typing." />
+          </div>
+          <select
+            value={selectedFixtureKey}
+            onChange={(e) => setSelectedFixtureKey(e.target.value)}
+            style={fieldStyle}
+          >
+            {filteredFixtures.length ? (
+              filteredFixtures.map((x) => (
+                <option key={x.entry_id} value={`${x.adapter_code}||${x.fixture_type}`}>
+                  {x.project_name} — {x.adapter_code} / {x.fixture_type}
+                </option>
+              ))
+            ) : (
+              <option value="">No fixtures match search</option>
+            )}
+          </select>
+        </div>
+
+        <div>
+          <div style={labelStyle}>
+            Forecast lookback <Hint text="Hours used for burn-rate calculation. Longer = smoother but slower to react." />
+          </div>
+          <select value={lookbackHours} onChange={(e) => setLookbackHours(Number(e.target.value))} style={fieldStyle}>
             <option value={12}>12</option>
             <option value={24}>24</option>
             <option value={48}>48</option>
@@ -621,10 +583,13 @@ export default function AnalyticsPage() {
             <option value={336}>336 (14d)</option>
             <option value={720}>720 (30d)</option>
           </select>
-        </Field>
+        </div>
 
-        <Field label={<>Series range (hours) {helpIcon("How far back the chart should go.")}</>}>
-          <select value={seriesHours} onChange={(e) => setSeriesHours(Number(e.target.value))} style={{ padding: "8px 10px", width: "100%" }}>
+        <div>
+          <div style={labelStyle}>
+            Series range <Hint text="Time window shown in the chart. You can go up to 365 days." />
+          </div>
+          <select value={seriesHours} onChange={(e) => setSeriesHours(Number(e.target.value))} style={fieldStyle}>
             <option value={24}>24</option>
             <option value={72}>72</option>
             <option value={168}>168 (7d)</option>
@@ -634,94 +599,114 @@ export default function AnalyticsPage() {
             <option value={2160}>2160 (90d)</option>
             <option value={8760}>8760 (365d)</option>
           </select>
-        </Field>
+        </div>
 
-        <Field label={<>&nbsp;</>} helper={lastLoadedAt ? `Last refresh: ${lastLoadedAt}` : "\u00A0"}>
+        <div>
           <button
             onClick={loadAnalytics}
             disabled={loading || !selectedFixture}
-            title="Reload forecast, chart series, events, daily overview and probe demand."
-            style={{ padding: "8px 14px", width: "100%" }}
+            style={{
+              padding: "9px 14px",
+              width: "100%",
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.18)",
+              background: "rgba(255,255,255,0.16)",
+              color: "#fff",
+              fontWeight: 800,
+            }}
+            title="Fetch newest analytics for current selection"
           >
-            {loading ? "Loading..." : "Refresh"}
+            {loading ? "Loading…" : "Refresh"}
           </button>
-        </Field>
 
-        {/* Dropdown on separate row (stable) */}
-        <div style={{ gridColumn: "1 / -1" }}>
-          <Field
-            label={<>Fixture dropdown {helpIcon("Choose one of the filtered fixtures. Use ArrowDown from search to jump here.")}</>}
-            helper={dropdownHelper}
-          >
-            <select
-              ref={fixtureSelectRef}
-              value={selectedFixtureKey}
-              onChange={(e) => setSelectedFixtureKey(e.target.value)}
-              style={{ padding: "8px 10px", width: "100%" }}
-            >
-              {filteredFixtures.length ? (
-                filteredFixtures.slice(0, MAX_FIXTURE_OPTIONS).map((x) => (
-                  <option key={x.entry_id} value={`${x.adapter_code}||${x.fixture_type}`}>
-                    {fixtureDisplay(x)}
-                  </option>
-                ))
-              ) : (
-                <option value={selectedFixtureKey || ""} disabled>
-                  No fixtures match the search
-                </option>
-              )}
-            </select>
-          </Field>
+          {lastLoadedAt ? (
+            <div className="label" style={{ marginTop: 6, color: "#fff", opacity: 0.85 }}>
+              Last refresh: {lastLoadedAt}
+            </div>
+          ) : null}
         </div>
       </div>
 
       {err && (
         <div className="analytics-card" style={{ padding: 10, borderRadius: 12, marginBottom: 12 }}>
-          <div className="label" style={{ marginBottom: 6 }}>Error</div>
-          <div className="value" style={{ fontSize: 14, fontWeight: 600 }}>{err}</div>
+          <div className="label" style={{ marginBottom: 6 }}>
+            Error
+          </div>
+          <div className="value" style={{ fontSize: 14, fontWeight: 600 }}>
+            {err}
+          </div>
         </div>
       )}
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        <button
-          onClick={() => setActiveTab("overview")}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 10,
-            border: "1px solid rgba(255,255,255,0.18)",
-            background: activeTab === "overview" ? "rgba(255,255,255,0.10)" : "transparent",
-            color: "#fff",
-          }}
-        >
-          Overview
-        </button>
-        <button
-          onClick={() => setActiveTab("demand")}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 10,
-            border: "1px solid rgba(255,255,255,0.18)",
-            background: activeTab === "demand" ? "rgba(255,255,255,0.10)" : "transparent",
-            color: "#fff",
-          }}
-        >
-          Probe demand
-        </button>
+      {/* --- TAB: PROBE DEMAND --- */}
+      {tab === "probe" ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: 12 }}>
+          <div className="analytics-card p-3 rounded text-white">
+            <div style={{ fontWeight: 800, marginBottom: 8 }}>Probe demand totals (Next 7 days)</div>
+            <div className="label" style={{ opacity: 0.9, marginBottom: 10 }}>
+              Aggregated maintenance demand across fixtures in the selected plant.
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ textAlign: "left" }}>
+                    <th className="label" style={{ padding: "8px 6px" }}>Part number</th>
+                    <th className="label" style={{ padding: "8px 6px" }}>Total qty</th>
+                    <th className="label" style={{ padding: "8px 6px" }}>Fixtures</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {demandWeek.length ? (
+                    demandWeek.slice(0, 25).map((r) => (
+                      <tr key={`w-${r.part_number}`} style={{ borderTop: "1px solid rgba(255,255,255,0.10)" }}>
+                        <td style={{ padding: "8px 6px" }}>{r.part_number}</td>
+                        <td style={{ padding: "8px 6px" }}>{r.total_qty}</td>
+                        <td style={{ padding: "8px 6px" }}>{r.fixtures}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr><td className="label" style={{ padding: 8 }} colSpan={3}>No predicted maintenance this week.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-        <div style={{ marginLeft: "auto", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <label style={{ color: "#fff", opacity: 0.9, fontSize: 13, display: "flex", gap: 6, alignItems: "center" }}>
-            <input type="checkbox" checked={showForecastLine} onChange={(e) => setShowForecastLine(e.target.checked)} />
-            Forecast line
-          </label>
-          <label style={{ color: "#fff", opacity: 0.9, fontSize: 13, display: "flex", gap: 6, alignItems: "center" }}>
-            <input type="checkbox" checked={showDeltaLine} onChange={(e) => setShowDeltaLine(e.target.checked)} />
-            Delta/h line
-          </label>
+          <div className="analytics-card p-3 rounded text-white">
+            <div style={{ fontWeight: 800, marginBottom: 8 }}>Probe demand totals (Next 30 days)</div>
+            <div className="label" style={{ opacity: 0.9, marginBottom: 10 }}>
+              Good for planning orders / stock.
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ textAlign: "left" }}>
+                    <th className="label" style={{ padding: "8px 6px" }}>Part number</th>
+                    <th className="label" style={{ padding: "8px 6px" }}>Total qty</th>
+                    <th className="label" style={{ padding: "8px 6px" }}>Fixtures</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {demandMonth.length ? (
+                    demandMonth.slice(0, 25).map((r) => (
+                      <tr key={`m-${r.part_number}`} style={{ borderTop: "1px solid rgba(255,255,255,0.10)" }}>
+                        <td style={{ padding: "8px 6px" }}>{r.part_number}</td>
+                        <td style={{ padding: "8px 6px" }}>{r.total_qty}</td>
+                        <td style={{ padding: "8px 6px" }}>{r.fixtures}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr><td className="label" style={{ padding: 8 }} colSpan={3}>No predicted maintenance this month.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      </div>
+      ) : null}
 
-      {activeTab === "overview" ? (
+      {/* --- TAB: OVERVIEW --- */}
+      {tab === "overview" ? (
         <>
           {/* Summary cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, marginBottom: 14 }}>
@@ -735,8 +720,7 @@ export default function AnalyticsPage() {
               <div className="label">Burn rate</div>
               <div className="value" style={{ fontSize: 22 }}>{fmtRate(forecast?.avg_contacts_per_hour)}</div>
               <div className="label" style={{ marginTop: 6 }}>
-                window: {forecast?.window_start ? safeStr(forecast.window_start) : "—"} →{" "}
-                {forecast?.window_end ? safeStr(forecast.window_end) : "—"}
+                window: {forecast?.window_start ? safeStr(forecast.window_start) : "—"} → {forecast?.window_end ? safeStr(forecast.window_end) : "—"}
               </div>
             </div>
 
@@ -753,56 +737,110 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
+          {/* Daily overview */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: 12, marginBottom: 14 }}>
+            <div className="analytics-card p-3 rounded text-white">
+              <div style={{ fontWeight: 800, marginBottom: 8 }}>Plant daily overview (last 14 days)</div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ textAlign: "left" }}>
+                      <th className="label" style={{ padding: "8px 6px" }}>Day</th>
+                      <th className="label" style={{ padding: "8px 6px" }}>Resets</th>
+                      <th className="label" style={{ padding: "8px 6px" }}>TP events</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {daily.length ? (
+                      daily.map((d) => (
+                        <tr key={d.day} style={{ borderTop: "1px solid rgba(255,255,255,0.10)" }}>
+                          <td style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>{d.day}</td>
+                          <td style={{ padding: "8px 6px" }}>{Number(d.resets ?? 0)}</td>
+                          <td style={{ padding: "8px 6px" }}>{Number(d.tp_events ?? 0)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td className="label" style={{ padding: 8 }} colSpan={3}>No daily data.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Chart options panel */}
+            <div className="analytics-card p-3 rounded text-white">
+              <div style={{ fontWeight: 800, marginBottom: 8 }}>Chart options</div>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+                <input type="checkbox" checked={showDeltaLine} onChange={(e) => setShowDeltaLine(e.target.checked)} />
+                <span>
+                  Show <b>Δ/h</b> line (recommended when contacts are very high and look flat)
+                </span>
+              </label>
+              <div className="label" style={{ marginTop: 10, opacity: 0.9 }}>
+                Forecast lines are drawn using burn rate and ETA. Dashed reference lines show warning/limit thresholds.
+              </div>
+            </div>
+          </div>
+
           {/* Chart */}
           <div className="analytics-card p-3 rounded text-white" style={{ marginBottom: 14 }}>
-            <div style={{ fontWeight: 700, marginBottom: 10 }}>Contacts (hourly) + Forecast</div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontWeight: 800 }}>Contacts (hourly) + Forecast</div>
+              <div className="label" style={{ opacity: 0.9 }}>
+                {showDeltaLine ? "Δ/h helps visualize activity" : "Tip: enable Δ/h when line looks flat"}
+              </div>
+            </div>
 
-            <div ref={chartBox.ref} style={{ width: "100%", height: 340, minWidth: 0 }}>
-              {canRenderChart ? (
-                <ResponsiveContainer width="100%" height="100%">
+            {/* ✅ Fix for ResponsiveContainer width/height -1:
+               - give a concrete height
+               - avoid measuring with ResizeObserver
+               - enforce minWidth:0 to prevent flex issues */}
+            <div style={{ width: "100%", height: 340, minWidth: 0 }}>
+              {mounted && chartData.length ? (
+                <ResponsiveContainer width="100%" height="100%" debounce={120} minWidth={0}>
                   <LineChart data={chartData}>
                     <CartesianGrid />
-                    <XAxis dataKey="sample_ts" tick={{ fontSize: 11 }} minTickGap={20} />
-                    <YAxis yAxisId="left" tick={{ fontSize: 11 }} domain={yDomainContacts} />
-                    {showDeltaLine ? <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} domain={["auto", "auto"]} /> : null}
+                    <XAxis dataKey="sample_ts" tick={{ fontSize: 11 }} minTickGap={22} />
+                    <YAxis tick={{ fontSize: 11 }} domain={["auto", "auto"]} />
+                    {showDeltaLine ? (
+                      <YAxis yAxisId="delta" orientation="right" tick={{ fontSize: 11 }} domain={["auto", "auto"]} />
+                    ) : null}
                     <Tooltip />
                     <Legend />
 
-                    {typeof warningLine === "number" && warningLine > 0 ? <ReferenceLine yAxisId="left" y={warningLine} strokeDasharray="6 4" /> : null}
-                    {typeof limitLine === "number" && limitLine > 0 ? <ReferenceLine yAxisId="left" y={limitLine} strokeDasharray="6 4" /> : null}
+                    {typeof warningLine === "number" && warningLine > 0 ? <ReferenceLine y={warningLine} strokeDasharray="6 4" /> : null}
+                    {typeof limitLine === "number" && limitLine > 0 ? <ReferenceLine y={limitLine} strokeDasharray="6 4" /> : null}
 
-                    <Line yAxisId="left" type="monotone" dataKey="contacts" name="Contacts" dot={false} />
-                    {showForecastLine ? (
-                      <Line yAxisId="left" type="monotone" dataKey="forecast_contacts" name="Forecast (projection)" dot={false} strokeDasharray="6 4" />
-                    ) : null}
+                    {/* Real contacts */}
+                    <Line type="monotone" dataKey="contacts" dot={false} name="Contacts" />
+
+                    {/* Delta per hour */}
                     {showDeltaLine ? (
-                      <Line yAxisId="right" type="monotone" dataKey="delta" name="Delta / hour" dot={false} />
+                      <Line type="monotone" dataKey="delta_h" yAxisId="delta" dot={false} name="Δ/h" connectNulls />
                     ) : null}
 
-                    {showForecastLine && etaWarnTs && typeof warningLine === "number" ? (
-                      <ReferenceDot x={etaWarnTs} y={warningLine} yAxisId="left" r={5} label={{ value: "ETA warn", position: "top" }} />
-                    ) : null}
+                    {/* Forecast to warning */}
+                    <Line type="monotone" dataKey="forecast_warn" dot={false} name="Forecast → Warning" connectNulls strokeDasharray="4 4" />
 
-                    {showForecastLine && etaLimitTs && typeof limitLine === "number" ? (
-                      <ReferenceDot x={etaLimitTs} y={limitLine} yAxisId="left" r={5} label={{ value: "ETA limit", position: "top" }} />
-                    ) : null}
+                    {/* Forecast to limit */}
+                    <Line type="monotone" dataKey="forecast_limit" dot={false} name="Forecast → Limit" connectNulls strokeDasharray="4 4" />
                   </LineChart>
                 </ResponsiveContainer>
               ) : (
                 <div className="label" style={{ padding: "10px 0" }}>
-                  {chartData.length ? "Chart container not ready yet..." : "No samples for the selected range."}
+                  {mounted ? "No samples for the selected range." : "Loading chart…"}
                 </div>
               )}
             </div>
 
-            <div className="label" style={{ marginTop: 10 }}>
-              Tip: enable “Delta/h line” when contacts are very high and look flat; it highlights activity per hour.
+            <div className="label" style={{ marginTop: 8 }}>
+              Dashed horizontal lines: warning / limit. Forecast lines use burn rate + ETA.
             </div>
           </div>
 
           {/* Events */}
           <div className="analytics-card p-3 rounded text-white">
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>Recent events</div>
+            <div style={{ fontWeight: 800, marginBottom: 8 }}>Recent events</div>
 
             <div className="label" style={{ marginBottom: 8 }}>
               Click headers to sort (current: {eventSortKey} {eventSortDir})
@@ -823,10 +861,10 @@ export default function AnalyticsPage() {
                 </thead>
                 <tbody>
                   {sortedEvents.length ? (
-                    sortedEvents.map((e, idx) => {
+                    sortedEvents.map((e) => {
                       const dt = splitDateTime(e.created_at);
                       return (
-                        <tr key={e.entry_id} style={{ borderTop: "1px solid rgba(255,255,255,0.10)", background: idx % 2 === 0 ? "rgba(255,255,255,0.03)" : "transparent" }}>
+                        <tr key={e.entry_id} style={{ borderTop: "1px solid rgba(255,255,255,0.10)" }}>
                           <td style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>{dt.date}</td>
                           <td style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>{dt.time}</td>
                           <td style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>{e.event_type}</td>
@@ -838,77 +876,14 @@ export default function AnalyticsPage() {
                       );
                     })
                   ) : (
-                    <tr>
-                      <td style={{ padding: 8 }} className="label" colSpan={7}>No events.</td>
-                    </tr>
+                    <tr><td style={{ padding: 8 }} className="label" colSpan={7}>No events.</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
           </div>
         </>
-      ) : (
-        <>
-          {/* Demand tab */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: 12 }}>
-            <div className="analytics-card p-3 rounded text-white">
-              <div style={{ fontWeight: 700, marginBottom: 10 }}>Probe demand totals (Next 7 days)</div>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ textAlign: "left" }}>
-                      <th className="label" style={{ padding: "8px 6px" }}>Part number</th>
-                      <th className="label" style={{ padding: "8px 6px" }}>Total qty</th>
-                      <th className="label" style={{ padding: "8px 6px" }}>Fixtures</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {demandWeek.length ? (
-                      demandWeek.slice(0, 30).map((r, idx) => (
-                        <tr key={`w-${r.part_number}`} style={{ borderTop: "1px solid rgba(255,255,255,0.10)", background: idx % 2 === 0 ? "rgba(255,255,255,0.03)" : "transparent" }}>
-                          <td style={{ padding: "8px 6px" }}>{r.part_number}</td>
-                          <td style={{ padding: "8px 6px" }}>{r.total_qty}</td>
-                          <td style={{ padding: "8px 6px" }}>{r.fixtures}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr><td className="label" style={{ padding: 8 }} colSpan={3}>No predicted maintenance this week.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="analytics-card p-3 rounded text-white">
-              <div style={{ fontWeight: 700, marginBottom: 10 }}>Probe demand totals (Next 30 days)</div>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ textAlign: "left" }}>
-                      <th className="label" style={{ padding: "8px 6px" }}>Part number</th>
-                      <th className="label" style={{ padding: "8px 6px" }}>Total qty</th>
-                      <th className="label" style={{ padding: "8px 6px" }}>Fixtures</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {demandMonth.length ? (
-                      demandMonth.slice(0, 30).map((r, idx) => (
-                        <tr key={`m-${r.part_number}`} style={{ borderTop: "1px solid rgba(255,255,255,0.10)", background: idx % 2 === 0 ? "rgba(255,255,255,0.03)" : "transparent" }}>
-                          <td style={{ padding: "8px 6px" }}>{r.part_number}</td>
-                          <td style={{ padding: "8px 6px" }}>{r.total_qty}</td>
-                          <td style={{ padding: "8px 6px" }}>{r.fixtures}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr><td className="label" style={{ padding: 8 }} colSpan={3}>No predicted maintenance this month.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      ) : null}
 
       <div style={{ height: 20 }} />
     </div>
