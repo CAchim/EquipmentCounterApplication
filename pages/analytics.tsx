@@ -45,7 +45,7 @@ type SeriesPoint = {
   contacts_limit: number;
   resets: number;
 
-  // UI-only derived fields:
+  // derived
   delta?: number;
   forecast_contacts?: number;
 };
@@ -67,6 +67,8 @@ type DemandAggRow = { part_number: string; total_qty: number; fixtures: number }
 type SortKey = "created_at" | "event_type" | "actor" | "old_value" | "new_value" | "event_details";
 type SortDir = "asc" | "desc";
 type TabKey = "overview" | "demand";
+
+const MAX_FIXTURE_OPTIONS = 500;
 
 function fmtHours(h: number | null | undefined) {
   if (h == null || !Number.isFinite(h)) return "—";
@@ -151,7 +153,9 @@ export default function AnalyticsPage() {
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [selectedFixtureKey, setSelectedFixtureKey] = useState<string>("");
 
-  const [fixtureSearch, setFixtureSearch] = useState<string>("");
+  // split search + dropdown
+  const [fixtureSearch, setFixtureSearch] = useState("");
+  const [fixtureSearchDebounced, setFixtureSearchDebounced] = useState("");
 
   const [lookbackHours, setLookbackHours] = useState<number>(24);
   const [seriesHours, setSeriesHours] = useState<number>(168);
@@ -177,57 +181,61 @@ export default function AnalyticsPage() {
 
   const chartBox = useElementSize<HTMLDivElement>();
 
+  // ✅ keyboard support refs
+  const fixtureSelectRef = useRef<HTMLSelectElement | null>(null);
+
   useEffect(() => {
     setMounted(true);
-    // One more RAF to avoid the ResponsiveContainer "negative size" during first layout.
     requestAnimationFrame(() => requestAnimationFrame(() => setChartReady(true)));
   }, []);
 
+  // debounce search
+  useEffect(() => {
+    const t = setTimeout(() => setFixtureSearchDebounced(fixtureSearch.trim()), 150);
+    return () => clearTimeout(t);
+  }, [fixtureSearch]);
+
   const fixtureDisplay = (x: Fixture) => `${x.project_name} — ${x.adapter_code} / ${x.fixture_type}`;
 
-  // Display -> key
-  const displayToKey = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const f of fixtures) {
-      m.set(fixtureDisplay(f), `${f.adapter_code}||${f.fixture_type}`);
-    }
-    return m;
-  }, [fixtures]);
-
-  // Single search field filter
-  const filteredFixtures = useMemo(() => {
-    const q = fixtureSearch.trim().toLowerCase();
-    if (!q) return fixtures;
-    return fixtures.filter((x) => {
-      const hay = `${x.project_name} ${x.adapter_code} ${x.fixture_type}`.toLowerCase();
-      return hay.includes(q);
-    });
-  }, [fixtures, fixtureSearch]);
-
-  // Selected fixture object
   const selectedFixture = useMemo(() => {
     const [a, f] = selectedFixtureKey.split("||");
     return fixtures.find((x) => x.adapter_code === a && x.fixture_type === f) || null;
   }, [fixtures, selectedFixtureKey]);
 
-  // keep selection valid even when search hides it
+  const filteredFixtures = useMemo(() => {
+    const q = fixtureSearchDebounced.toLowerCase();
+    if (!q) return fixtures;
+    return fixtures.filter((x) => {
+      const hay = `${x.project_name} ${x.adapter_code} ${x.fixture_type}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [fixtures, fixtureSearchDebounced]);
+
+  const filteredCount = filteredFixtures.length;
+  const shownCount = Math.min(filteredCount, MAX_FIXTURE_OPTIONS);
+  const isCapped = filteredCount > MAX_FIXTURE_OPTIONS;
+
+  // Ensure selection stays valid when search changes
   useEffect(() => {
-    if (!filteredFixtures.length) return;
-    const exists = filteredFixtures.some((x) => `${x.adapter_code}||${x.fixture_type}` === selectedFixtureKey);
-    if (!selectedFixtureKey || !exists) {
-      const first = filteredFixtures[0];
-      setSelectedFixtureKey(`${first.adapter_code}||${first.fixture_type}`);
+    if (!fixtures.length) return;
+
+    // if nothing selected yet -> pick first
+    if (!selectedFixtureKey) {
+      if (fixtures[0]) setSelectedFixtureKey(`${fixtures[0].adapter_code}||${fixtures[0].fixture_type}`);
+      return;
+    }
+
+    // if a search filter exists and selection not in filtered list -> pick first match
+    if (fixtureSearchDebounced) {
+      const existsInFiltered = filteredFixtures.some(
+        (x) => `${x.adapter_code}||${x.fixture_type}` === selectedFixtureKey
+      );
+      if (!existsInFiltered && filteredFixtures[0]) {
+        setSelectedFixtureKey(`${filteredFixtures[0].adapter_code}||${filteredFixtures[0].fixture_type}`);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredFixtures]);
-
-  // if user didn’t type anything, show selected label in the search box
-  useEffect(() => {
-    if (!selectedFixture) return;
-    if (fixtureSearch.trim()) return;
-    setFixtureSearch(fixtureDisplay(selectedFixture));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFixtureKey]);
+  }, [fixtureSearchDebounced, filteredFixtures, fixtures]);
 
   // Load plants
   useEffect(() => {
@@ -260,9 +268,15 @@ export default function AnalyticsPage() {
         const list = Array.isArray(j.fixtures) ? j.fixtures : [];
         setFixtures(list);
 
-        if (!selectedFixtureKey && list.length) {
+        // reset search between plants
+        setFixtureSearch("");
+        setFixtureSearchDebounced("");
+
+        if (list.length) {
           const first = list[0];
           setSelectedFixtureKey(`${first.adapter_code}||${first.fixture_type}`);
+        } else {
+          setSelectedFixtureKey("");
         }
       } catch (e: any) {
         setFixtures([]);
@@ -381,7 +395,6 @@ export default function AnalyticsPage() {
         warning_at: last.warning_at,
         contacts_limit: last.contacts_limit,
         resets: last.resets,
-        delta: undefined,
         forecast_contacts: c,
       });
 
@@ -413,7 +426,7 @@ export default function AnalyticsPage() {
     return formatHourTs(d);
   }, [forecast?.eta_limit_hours, series]);
 
-  // Contacts Y-domain with padding
+  // y-domain with padding
   const yDomainContacts = useMemo(() => {
     return [
       (min: number) => {
@@ -485,27 +498,23 @@ export default function AnalyticsPage() {
     </span>
   );
 
-  // Shared field wrapper -> guarantees alignment
   const Field: React.FC<{
     label: React.ReactNode;
     helper?: React.ReactNode;
     children: React.ReactNode;
     span?: number;
-  }> = ({ label, helper, children, span }) => {
-    return (
-      <div style={{ display: "grid", gridTemplateRows: "18px 38px 18px", gap: 6, gridColumn: span ? `span ${span}` : undefined }}>
-        <div style={{ fontSize: 12, opacity: 0.85, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {label}
-        </div>
-        <div style={{ display: "flex", alignItems: "center" }}>{children}</div>
-        <div className="label" style={{ color: "#fff", opacity: 0.85, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {helper ?? "\u00A0" /* reserved space */}
-        </div>
+  }> = ({ label, helper, children, span }) => (
+    <div style={{ display: "grid", gridTemplateRows: "18px auto 18px", gap: 6, gridColumn: span ? `span ${span}` : undefined }}>
+      <div style={{ fontSize: 12, opacity: 0.85, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        {label}
       </div>
-    );
-  };
+      <div style={{ display: "flex", alignItems: "center" }}>{children}</div>
+      <div className="label" style={{ color: "#fff", opacity: 0.85, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        {helper ?? "\u00A0"}
+      </div>
+    </div>
+  );
 
-  // Chart render gate (kills the -1/-1 warning)
   const canRenderChart =
     mounted &&
     chartReady &&
@@ -514,11 +523,15 @@ export default function AnalyticsPage() {
     Array.isArray(chartData) &&
     chartData.length > 0;
 
+  const dropdownHelper = fixtureSearchDebounced
+    ? `Showing ${shownCount} of ${filteredCount} matches${isCapped ? ` (capped at ${MAX_FIXTURE_OPTIONS})` : ""}`
+    : `Showing ${shownCount} fixtures${fixtures.length > MAX_FIXTURE_OPTIONS ? ` (render cap ${MAX_FIXTURE_OPTIONS})` : ""}`;
+
   return (
     <div className="mx-4 my-4">
       <h2 style={{ marginBottom: 12, color: "#fff" }}>Analytics</h2>
 
-      {/* Filters: aligned */}
+      {/* Filters */}
       <div
         style={{
           display: "grid",
@@ -528,18 +541,11 @@ export default function AnalyticsPage() {
           marginBottom: 14,
         }}
       >
-        <Field
-          label={
-            <>
-              Plant {helpIcon("Select which plant you are viewing.")}
-            </>
-          }
-        >
+        <Field label={<>Plant {helpIcon("Select which plant you are viewing.")}</>}>
           <select
             value={selectedPlant}
             onChange={(e) => {
               setSelectedPlant(e.target.value);
-              setSelectedFixtureKey("");
               setForecast(null);
               setSeries([]);
               setEvents([]);
@@ -547,7 +553,6 @@ export default function AnalyticsPage() {
               setDemandWeek([]);
               setDemandMonth([]);
               setLastLoadedAt("");
-              setFixtureSearch("");
             }}
             style={{ padding: "8px 10px", width: "100%" }}
           >
@@ -564,44 +569,49 @@ export default function AnalyticsPage() {
         </Field>
 
         <Field
-          span={1}
           label={
             <>
-              Fixture (search by project / adapter / type){" "}
-              {helpIcon("Type any part of project name, adapter code, or fixture type. Select from suggestions.")}
+              Fixture search {helpIcon("Type any part of project / adapter / fixture type. ArrowDown focuses dropdown. Enter selects first match.")}
             </>
           }
-          helper={selectedFixture ? `Selected: ${fixtureDisplay(selectedFixture)}` : "\u00A0"}
+          helper={<span>{selectedFixture ? `Selected: ${fixtureDisplay(selectedFixture)}` : "—"}</span>}
         >
-          <div style={{ width: "100%" }}>
+          <div style={{ width: "100%", display: "grid", gridTemplateColumns: "1fr 110px", gap: 10, alignItems: "center" }}>
             <input
-              list="fixtureList"
               value={fixtureSearch}
-              onChange={(e) => {
-                const v = e.target.value;
-                setFixtureSearch(v);
-                const k = displayToKey.get(v);
-                if (k) setSelectedFixtureKey(k);
-              }}
-              placeholder="Type: project / adapter / fixture..."
+              onChange={(e) => setFixtureSearch(e.target.value)}
+              placeholder="Type to filter fixtures..."
               style={{ padding: "8px 10px", width: "100%" }}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  fixtureSelectRef.current?.focus();
+                }
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (filteredFixtures[0]) {
+                    setSelectedFixtureKey(`${filteredFixtures[0].adapter_code}||${filteredFixtures[0].fixture_type}`);
+                    fixtureSelectRef.current?.focus();
+                  }
+                }
+              }}
             />
-            <datalist id="fixtureList">
-              {filteredFixtures.slice(0, 250).map((x) => (
-                <option key={x.entry_id} value={fixtureDisplay(x)} />
-              ))}
-            </datalist>
+            <button
+              type="button"
+              onClick={() => {
+                setFixtureSearch("");
+                setFixtureSearchDebounced("");
+              }}
+              title="Clear search filter"
+              style={{ padding: "8px 10px", width: "100%" }}
+              disabled={!fixtureSearch.trim()}
+            >
+              Clear
+            </button>
           </div>
         </Field>
 
-        <Field
-          label={
-            <>
-              Forecast lookback (hours){" "}
-              {helpIcon("Window used to compute burn rate. Larger = smoother, smaller = more reactive.")}
-            </>
-          }
-        >
+        <Field label={<>Forecast lookback (hours) {helpIcon("Window used to compute burn rate (avg contacts/hour).")}</>}>
           <select value={lookbackHours} onChange={(e) => setLookbackHours(Number(e.target.value))} style={{ padding: "8px 10px", width: "100%" }}>
             <option value={12}>12</option>
             <option value={24}>24</option>
@@ -613,13 +623,7 @@ export default function AnalyticsPage() {
           </select>
         </Field>
 
-        <Field
-          label={
-            <>
-              Series range (hours) {helpIcon("How far back the chart should go.")}
-            </>
-          }
-        >
+        <Field label={<>Series range (hours) {helpIcon("How far back the chart should go.")}</>}>
           <select value={seriesHours} onChange={(e) => setSeriesHours(Number(e.target.value))} style={{ padding: "8px 10px", width: "100%" }}>
             <option value={24}>24</option>
             <option value={72}>72</option>
@@ -632,29 +636,49 @@ export default function AnalyticsPage() {
           </select>
         </Field>
 
-        <Field
-          label={<>&nbsp;</>}
-          helper={lastLoadedAt ? `Last refresh: ${lastLoadedAt}` : "\u00A0"}
-        >
+        <Field label={<>&nbsp;</>} helper={lastLoadedAt ? `Last refresh: ${lastLoadedAt}` : "\u00A0"}>
           <button
             onClick={loadAnalytics}
             disabled={loading || !selectedFixture}
-            title="Reload everything: forecast, series, events, daily overview, probe demand."
+            title="Reload forecast, chart series, events, daily overview and probe demand."
             style={{ padding: "8px 14px", width: "100%" }}
           >
             {loading ? "Loading..." : "Refresh"}
           </button>
         </Field>
+
+        {/* Dropdown on separate row (stable) */}
+        <div style={{ gridColumn: "1 / -1" }}>
+          <Field
+            label={<>Fixture dropdown {helpIcon("Choose one of the filtered fixtures. Use ArrowDown from search to jump here.")}</>}
+            helper={dropdownHelper}
+          >
+            <select
+              ref={fixtureSelectRef}
+              value={selectedFixtureKey}
+              onChange={(e) => setSelectedFixtureKey(e.target.value)}
+              style={{ padding: "8px 10px", width: "100%" }}
+            >
+              {filteredFixtures.length ? (
+                filteredFixtures.slice(0, MAX_FIXTURE_OPTIONS).map((x) => (
+                  <option key={x.entry_id} value={`${x.adapter_code}||${x.fixture_type}`}>
+                    {fixtureDisplay(x)}
+                  </option>
+                ))
+              ) : (
+                <option value={selectedFixtureKey || ""} disabled>
+                  No fixtures match the search
+                </option>
+              )}
+            </select>
+          </Field>
+        </div>
       </div>
 
       {err && (
         <div className="analytics-card" style={{ padding: 10, borderRadius: 12, marginBottom: 12 }}>
-          <div className="label" style={{ marginBottom: 6 }}>
-            Error
-          </div>
-          <div className="value" style={{ fontSize: 14, fontWeight: 600 }}>
-            {err}
-          </div>
+          <div className="label" style={{ marginBottom: 6 }}>Error</div>
+          <div className="value" style={{ fontSize: 14, fontWeight: 600 }}>{err}</div>
         </div>
       )}
 
@@ -703,19 +727,13 @@ export default function AnalyticsPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, marginBottom: 14 }}>
             <div className="analytics-card p-3 rounded text-white">
               <div className="label">Current</div>
-              <div className="value" style={{ fontSize: 22 }}>
-                {currentContacts}
-              </div>
-              <div className="label" style={{ marginTop: 6 }}>
-                warning: {warningLine ?? "—"} · limit: {limitLine ?? "—"}
-              </div>
+              <div className="value" style={{ fontSize: 22 }}>{currentContacts}</div>
+              <div className="label" style={{ marginTop: 6 }}>warning: {warningLine ?? "—"} · limit: {limitLine ?? "—"}</div>
             </div>
 
             <div className="analytics-card p-3 rounded text-white">
               <div className="label">Burn rate</div>
-              <div className="value" style={{ fontSize: 22 }}>
-                {fmtRate(forecast?.avg_contacts_per_hour)}
-              </div>
+              <div className="value" style={{ fontSize: 22 }}>{fmtRate(forecast?.avg_contacts_per_hour)}</div>
               <div className="label" style={{ marginTop: 6 }}>
                 window: {forecast?.window_start ? safeStr(forecast.window_start) : "—"} →{" "}
                 {forecast?.window_end ? safeStr(forecast.window_end) : "—"}
@@ -724,17 +742,13 @@ export default function AnalyticsPage() {
 
             <div className="analytics-card p-3 rounded text-white">
               <div className="label">ETA to warning</div>
-              <div className="value" style={{ fontSize: 22 }}>
-                {fmtHours(forecast?.eta_warning_hours)}
-              </div>
+              <div className="value" style={{ fontSize: 22 }}>{fmtHours(forecast?.eta_warning_hours)}</div>
               <div className="label" style={{ marginTop: 6 }}>based on avg positive deltas</div>
             </div>
 
             <div className="analytics-card p-3 rounded text-white">
               <div className="label">ETA to limit</div>
-              <div className="value" style={{ fontSize: 22 }}>
-                {fmtHours(forecast?.eta_limit_hours)}
-              </div>
+              <div className="value" style={{ fontSize: 22 }}>{fmtHours(forecast?.eta_limit_hours)}</div>
               <div className="label" style={{ marginTop: 6 }}>based on avg positive deltas</div>
             </div>
           </div>
@@ -743,16 +757,9 @@ export default function AnalyticsPage() {
           <div className="analytics-card p-3 rounded text-white" style={{ marginBottom: 14 }}>
             <div style={{ fontWeight: 700, marginBottom: 10 }}>Contacts (hourly) + Forecast</div>
 
-            <div
-              ref={chartBox.ref}
-              style={{
-                width: "100%",
-                minWidth: 0,
-                // height is driven by aspect to avoid 0/-1 issues
-              }}
-            >
+            <div ref={chartBox.ref} style={{ width: "100%", height: 340, minWidth: 0 }}>
               {canRenderChart ? (
-                <ResponsiveContainer width="100%" aspect={3}>
+                <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData}>
                     <CartesianGrid />
                     <XAxis dataKey="sample_ts" tick={{ fontSize: 11 }} minTickGap={20} />
@@ -765,11 +772,9 @@ export default function AnalyticsPage() {
                     {typeof limitLine === "number" && limitLine > 0 ? <ReferenceLine yAxisId="left" y={limitLine} strokeDasharray="6 4" /> : null}
 
                     <Line yAxisId="left" type="monotone" dataKey="contacts" name="Contacts" dot={false} />
-
                     {showForecastLine ? (
                       <Line yAxisId="left" type="monotone" dataKey="forecast_contacts" name="Forecast (projection)" dot={false} strokeDasharray="6 4" />
                     ) : null}
-
                     {showDeltaLine ? (
                       <Line yAxisId="right" type="monotone" dataKey="delta" name="Delta / hour" dot={false} />
                     ) : null}
