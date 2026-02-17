@@ -260,7 +260,9 @@ export default function AnalyticsPage() {
 
     (async () => {
       try {
-        const j = await fetchJson<{ fixtures: Fixture[] }>(`/api/analytics/fixtures?plant=${encodeURIComponent(selectedPlant)}`);
+        const j = await fetchJson<{ fixtures: Fixture[] }>(
+          `/api/analytics/fixtures?plant=${encodeURIComponent(selectedPlant)}`
+        );
         const list = Array.isArray(j.fixtures) ? j.fixtures : [];
         setFixtures(list);
 
@@ -331,12 +333,20 @@ export default function AnalyticsPage() {
         `&fixture=${encodeURIComponent(selectedFixture.fixture_type)}`;
 
       const [jf, js, je, jd, jdem] = await Promise.all([
-        fetchJson<{ forecast: ForecastRow | null }>(`/api/analytics/forecast?${base}&lookback=${encodeURIComponent(String(lookbackHours))}`),
-        fetchJson<{ series: SeriesPoint[] }>(`/api/analytics/series?${base}&hours=${encodeURIComponent(String(seriesHours))}`),
+        fetchJson<{ forecast: ForecastRow | null }>(
+          `/api/analytics/forecast?${base}&lookback=${encodeURIComponent(String(lookbackHours))}`
+        ),
+        fetchJson<{ series: SeriesPoint[] }>(
+          `/api/analytics/series?${base}&hours=${encodeURIComponent(String(seriesHours))}`
+        ),
         fetchJson<{ events: EventRow[] }>(`/api/analytics/events?${base}&limit=80`),
-        fetchJson<{ daily: DailyRow[] }>(`/api/analytics/plant-daily?plant=${encodeURIComponent(selectedPlant)}&days=14`),
+        fetchJson<{ daily: DailyRow[] }>(
+          `/api/analytics/plant-daily?plant=${encodeURIComponent(selectedPlant)}&days=14`
+        ),
         fetchJson<{ week: { demandByPn: DemandAggRow[] }; month: { demandByPn: DemandAggRow[] } }>(
-          `/api/analytics/probe-demand?plant=${encodeURIComponent(selectedPlant)}&lookback=${encodeURIComponent(String(lookbackHours))}`
+          `/api/analytics/probe-demand?plant=${encodeURIComponent(selectedPlant)}&lookback=${encodeURIComponent(
+            String(lookbackHours)
+          )}`
         ),
       ]);
 
@@ -456,7 +466,8 @@ export default function AnalyticsPage() {
     forecast_limit?: number | null;
   };
 
-  const chartData: ChartRow[] = useMemo(() => {
+  // ✅ UPDATED: also returns ETA timestamps so we can draw vertical lines + labels
+  const { chartData, etaWarnTs, etaLimitTs } = useMemo(() => {
     const base: ChartRow[] = (Array.isArray(series) ? series : []).map((p, idx, arr) => {
       const prev = idx > 0 ? arr[idx - 1] : null;
       const delta = prev ? Number(p.contacts ?? 0) - Number(prev.contacts ?? 0) : null;
@@ -468,14 +479,17 @@ export default function AnalyticsPage() {
       };
     });
 
-    if (!base.length) return base;
+    if (!base.length) {
+      return { chartData: base, etaWarnTs: null as string | null, etaLimitTs: null as string | null };
+    }
 
     const last = base[base.length - 1];
     const lastD = parseChartTsToDate(last.sample_ts);
-    if (!lastD) return base;
+    if (!lastD) {
+      return { chartData: base, etaWarnTs: null as string | null, etaLimitTs: null as string | null };
+    }
 
     const lastContacts = Number(last.contacts ?? 0);
-    const rate = Number(forecast?.avg_contacts_per_hour ?? 0);
 
     const etaW = forecast?.eta_warning_hours;
     const etaL = forecast?.eta_limit_hours;
@@ -487,13 +501,19 @@ export default function AnalyticsPage() {
 
     const out = [...base];
 
-    // Warning forecast
-    if (Number.isFinite(rate) && rate > 0 && etaW != null && Number.isFinite(etaW) && etaW > 0 && warningLine != null) {
+    let etaWarnTs: string | null = null;
+    let etaLimitTs: string | null = null;
+
+    // Warning forecast point + timestamp
+    if (etaW != null && Number.isFinite(etaW) && etaW > 0 && warningLine != null) {
       out[out.length - 1] = { ...out[out.length - 1], forecast_warn: lastContacts };
+
       const dt = new Date(lastD.getTime() + etaW * 3600 * 1000);
+      etaWarnTs = makeTs(dt);
+
       out.push({
         ...last,
-        sample_ts: makeTs(dt),
+        sample_ts: etaWarnTs,
         contacts: Number(warningLine),
         delta_h: null,
         forecast_warn: Number(warningLine),
@@ -501,14 +521,16 @@ export default function AnalyticsPage() {
       });
     }
 
-    // Limit forecast
-    if (Number.isFinite(rate) && rate > 0 && etaL != null && Number.isFinite(etaL) && etaL > 0 && limitLine != null) {
-      // ensure start point set (might already have forecast_warn)
+    // Limit forecast point + timestamp
+    if (etaL != null && Number.isFinite(etaL) && etaL > 0 && limitLine != null) {
       out[out.length - 1] = { ...out[out.length - 1], forecast_limit: lastContacts };
+
       const dt = new Date(lastD.getTime() + etaL * 3600 * 1000);
+      etaLimitTs = makeTs(dt);
+
       out.push({
         ...last,
-        sample_ts: makeTs(dt),
+        sample_ts: etaLimitTs,
         contacts: Number(limitLine),
         delta_h: null,
         forecast_warn: null,
@@ -522,7 +544,7 @@ export default function AnalyticsPage() {
       return ad - bd;
     });
 
-    return out;
+    return { chartData: out, etaWarnTs, etaLimitTs };
   }, [series, forecast, warningLine, limitLine]);
 
   // UI helpers
@@ -566,11 +588,18 @@ export default function AnalyticsPage() {
     outline: "none",
   };
 
-  const labelStyle: React.CSSProperties = { fontSize: 12, opacity: 0.85, color: "#fff", display: "flex", alignItems: "center" };
+  const labelStyle: React.CSSProperties = {
+    fontSize: 12,
+    opacity: 0.85,
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+  };
 
   const chartHeight = 340; // stable height
 
-  const canRenderChart = mounted && tab === "overview" && chartBox.width > 10 && chartHeight > 10 && chartData.length > 0;
+  const canRenderChart =
+    mounted && tab === "overview" && chartBox.width > 10 && chartHeight > 10 && chartData.length > 0;
 
   return (
     <div className="mx-4 my-4" style={{ minWidth: 0 }}>
@@ -627,7 +656,8 @@ export default function AnalyticsPage() {
 
         <div>
           <div style={labelStyle}>
-            Fixture search <Hint text="Type project / adapter / type. Press Esc to clear. Press / to focus from anywhere." />
+            Fixture search{" "}
+            <Hint text="Type project / adapter / type. Press Esc to clear. Press / to focus from anywhere." />
           </div>
           <input
             ref={fixtureSearchRef}
@@ -643,15 +673,6 @@ export default function AnalyticsPage() {
             placeholder="Search project / adapter / fixture type…"
             style={fieldStyle}
           />
-          <div className="label" style={{ marginTop: 6, color: "#fff", opacity: 0.85 }}>
-            {selectedFixture ? (
-              <>
-                Selected: {selectedFixture.project_name} — {selectedFixture.adapter_code} / {selectedFixture.fixture_type}
-              </>
-            ) : (
-              <>No fixture selected</>
-            )}
-          </div>
         </div>
 
         <div style={{ gridColumn: "span 2" }}>
@@ -673,7 +694,8 @@ export default function AnalyticsPage() {
 
         <div>
           <div style={labelStyle}>
-            Forecast lookback <Hint text="Hours used for burn-rate calculation. Longer = smoother but slower to react." />
+            Forecast lookback{" "}
+            <Hint text="Hours used for burn-rate calculation. Longer = smoother but slower to react." />
           </div>
           <select value={lookbackHours} onChange={(e) => setLookbackHours(Number(e.target.value))} style={fieldStyle}>
             <option value={12}>12</option>
@@ -720,11 +742,23 @@ export default function AnalyticsPage() {
             {loading ? "Loading…" : "Refresh"}
           </button>
 
-          {lastLoadedAt ? (
+          {/* {lastLoadedAt ? (
             <div className="label" style={{ marginTop: 6, color: "#fff", opacity: 0.85 }}>
               Last refresh: {lastLoadedAt}
             </div>
-          ) : null}
+          ) : null} */}
+        </div>
+      </div>
+
+      <div style={labelStyle}>
+        <div className="label" style={{ marginTop: 6, color: "#fff", opacity: 0.85 }}>
+          {selectedFixture ? (
+            <>
+              Selected: {selectedFixture.project_name} — {selectedFixture.adapter_code} / {selectedFixture.fixture_type}
+            </>
+          ) : (
+            <>No fixture selected</>
+          )}
         </div>
       </div>
 
@@ -751,9 +785,15 @@ export default function AnalyticsPage() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ textAlign: "left" }}>
-                    <th className="label" style={{ padding: "8px 6px" }}>Part number</th>
-                    <th className="label" style={{ padding: "8px 6px" }}>Total qty</th>
-                    <th className="label" style={{ padding: "8px 6px" }}>Fixtures</th>
+                    <th className="label" style={{ padding: "8px 6px" }}>
+                      Part number
+                    </th>
+                    <th className="label" style={{ padding: "8px 6px" }}>
+                      Total qty
+                    </th>
+                    <th className="label" style={{ padding: "8px 6px" }}>
+                      Fixtures
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -766,7 +806,11 @@ export default function AnalyticsPage() {
                       </tr>
                     ))
                   ) : (
-                    <tr><td className="label" style={{ padding: 8 }} colSpan={3}>No predicted maintenance this week.</td></tr>
+                    <tr>
+                      <td className="label" style={{ padding: 8 }} colSpan={3}>
+                        No predicted maintenance this week.
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>
@@ -782,9 +826,15 @@ export default function AnalyticsPage() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ textAlign: "left" }}>
-                    <th className="label" style={{ padding: "8px 6px" }}>Part number</th>
-                    <th className="label" style={{ padding: "8px 6px" }}>Total qty</th>
-                    <th className="label" style={{ padding: "8px 6px" }}>Fixtures</th>
+                    <th className="label" style={{ padding: "8px 6px" }}>
+                      Part number
+                    </th>
+                    <th className="label" style={{ padding: "8px 6px" }}>
+                      Total qty
+                    </th>
+                    <th className="label" style={{ padding: "8px 6px" }}>
+                      Fixtures
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -797,7 +847,11 @@ export default function AnalyticsPage() {
                       </tr>
                     ))
                   ) : (
-                    <tr><td className="label" style={{ padding: 8 }} colSpan={3}>No predicted maintenance this month.</td></tr>
+                    <tr>
+                      <td className="label" style={{ padding: 8 }} colSpan={3}>
+                        No predicted maintenance this month.
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>
@@ -810,10 +864,19 @@ export default function AnalyticsPage() {
       {tab === "overview" ? (
         <>
           {/* Summary cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, marginBottom: 14 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              gap: 12,
+              marginBottom: 14,
+            }}
+          >
             <div className="analytics-card p-3 rounded text-white">
               <div className="label">Current</div>
-              <div className="value" style={{ fontSize: 22 }}>{currentContacts}</div>
+              <div className="value" style={{ fontSize: 22 }}>
+                {currentContacts}
+              </div>
               <div className="label" style={{ marginTop: 6 }}>
                 warning: {warningLine ?? "—"} · limit: {limitLine ?? "—"}
               </div>
@@ -822,40 +885,59 @@ export default function AnalyticsPage() {
             <div className="analytics-card p-3 rounded text-white">
               <div className="label" style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                 <span>Burn rate</span>
-                <span title="How reliable is the burn-rate? Based on how many hourly samples exist in the lookback window."
+                <span
+                  title="How reliable is the burn-rate? Based on how many hourly samples exist in the lookback window."
                   style={{
                     padding: "2px 8px",
                     borderRadius: 999,
                     border: "1px solid rgba(255,255,255,0.18)",
                     background: "rgba(255,255,255,0.10)",
                     fontSize: 12,
-                    whiteSpace: "nowrap"
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {forecastConfidence.label} · {forecastConfidence.detail}
                 </span>
               </div>
-              <div className="value" style={{ fontSize: 22 }}>{fmtRate(forecast?.avg_contacts_per_hour)}</div>
+              <div className="value" style={{ fontSize: 22 }}>
+                {fmtRate(forecast?.avg_contacts_per_hour)}
+              </div>
               <div className="label" style={{ marginTop: 6 }}>
-                window: {forecast?.window_start ? safeStr(forecast.window_start) : "—"} → {forecast?.window_end ? safeStr(forecast.window_end) : "—"}
+                window: {forecast?.window_start ? safeStr(forecast.window_start) : "—"} →{" "}
+                {forecast?.window_end ? safeStr(forecast.window_end) : "—"}
               </div>
             </div>
 
             <div className="analytics-card p-3 rounded text-white">
               <div className="label">ETA to warning</div>
-              <div className="value" style={{ fontSize: 22 }}>{fmtHours(forecast?.eta_warning_hours)}</div>
-              <div className="label" style={{ marginTop: 6 }}>based on avg positive deltas</div>
+              <div className="value" style={{ fontSize: 22 }}>
+                {fmtHours(forecast?.eta_warning_hours)}
+              </div>
+              <div className="label" style={{ marginTop: 6 }}>
+                based on avg positive deltas
+              </div>
             </div>
 
             <div className="analytics-card p-3 rounded text-white">
               <div className="label">ETA to limit</div>
-              <div className="value" style={{ fontSize: 22 }}>{fmtHours(forecast?.eta_limit_hours)}</div>
-              <div className="label" style={{ marginTop: 6 }}>based on avg positive deltas</div>
+              <div className="value" style={{ fontSize: 22 }}>
+                {fmtHours(forecast?.eta_limit_hours)}
+              </div>
+              <div className="label" style={{ marginTop: 6 }}>
+                based on avg positive deltas
+              </div>
             </div>
           </div>
 
           {/* Chart options */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: 12, marginBottom: 14 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
+              gap: 12,
+              marginBottom: 14,
+            }}
+          >
             <div className="analytics-card p-3 rounded text-white">
               <div style={{ fontWeight: 800, marginBottom: 8 }}>Chart options</div>
               <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
@@ -875,9 +957,15 @@ export default function AnalyticsPage() {
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr style={{ textAlign: "left" }}>
-                      <th className="label" style={{ padding: "8px 6px" }}>Day</th>
-                      <th className="label" style={{ padding: "8px 6px" }}>Resets</th>
-                      <th className="label" style={{ padding: "8px 6px" }}>TP events</th>
+                      <th className="label" style={{ padding: "8px 6px" }}>
+                        Day
+                      </th>
+                      <th className="label" style={{ padding: "8px 6px" }}>
+                        Resets
+                      </th>
+                      <th className="label" style={{ padding: "8px 6px" }}>
+                        TP events
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -890,7 +978,11 @@ export default function AnalyticsPage() {
                         </tr>
                       ))
                     ) : (
-                      <tr><td className="label" style={{ padding: 8 }} colSpan={3}>No daily data.</td></tr>
+                      <tr>
+                        <td className="label" style={{ padding: 8 }} colSpan={3}>
+                          No daily data.
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
@@ -900,7 +992,16 @@ export default function AnalyticsPage() {
 
           {/* Chart */}
           <div className="analytics-card p-3 rounded text-white" style={{ marginBottom: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 10,
+                flexWrap: "wrap",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
               <div style={{ fontWeight: 800 }}>Contacts (hourly) + Forecast</div>
               <div className="label" style={{ opacity: 0.9 }}>
                 {showDeltaLine ? "Δ/h helps visualize activity" : "Tip: enable Δ/h when line looks flat"}
@@ -918,22 +1019,112 @@ export default function AnalyticsPage() {
             >
               {canRenderChart ? (
                 <LineChart width={chartBox.width} height={chartHeight} data={chartData}>
-                  <CartesianGrid />
-                  <XAxis dataKey="sample_ts" tick={{ fontSize: 11 }} minTickGap={22} />
-                  <YAxis tick={{ fontSize: 11 }} domain={["auto", "auto"]} />
-                  {showDeltaLine ? <YAxis yAxisId="delta" orientation="right" tick={{ fontSize: 11 }} domain={["auto", "auto"]} /> : null}
+                  {/* ✅ COLORS + ETA MARKERS ONLY */}
+                  <CartesianGrid stroke="rgba(255,255,255,0.10)" />
 
-                  <Tooltip />
-                  <Legend />
+                  <XAxis
+                    dataKey="sample_ts"
+                    tick={{ fontSize: 11, fill: "rgba(255,255,255,0.85)" }}
+                    minTickGap={22}
+                  />
 
-                  {typeof warningLine === "number" && warningLine > 0 ? <ReferenceLine y={warningLine} strokeDasharray="6 4" /> : null}
-                  {typeof limitLine === "number" && limitLine > 0 ? <ReferenceLine y={limitLine} strokeDasharray="6 4" /> : null}
+                  <YAxis tick={{ fontSize: 11, fill: "rgba(255,255,255,0.85)" }} domain={["auto", "auto"]} />
 
-                  <Line type="monotone" dataKey="contacts" dot={false} name="Contacts" />
-                  {showDeltaLine ? <Line type="monotone" dataKey="delta_h" yAxisId="delta" dot={false} name="Δ/h" connectNulls /> : null}
+                  {showDeltaLine ? (
+                    <YAxis
+                      yAxisId="delta"
+                      orientation="right"
+                      tick={{ fontSize: 11, fill: "rgba(255,255,255,0.85)" }}
+                      domain={["auto", "auto"]}
+                    />
+                  ) : null}
 
-                  <Line type="monotone" dataKey="forecast_warn" dot={false} name="Forecast → Warning" connectNulls strokeDasharray="4 4" />
-                  <Line type="monotone" dataKey="forecast_limit" dot={false} name="Forecast → Limit" connectNulls strokeDasharray="4 4" />
+                  <Tooltip
+                    contentStyle={{
+                      background: "rgba(20,20,30,0.92)",
+                      border: "1px solid rgba(255,255,255,0.15)",
+                    }}
+                    labelStyle={{ color: "rgba(255,255,255,0.90)" }}
+                    itemStyle={{ color: "rgba(255,255,255,0.90)" }}
+                  />
+
+                  <Legend wrapperStyle={{ color: "rgba(255,255,255,0.9)" }} />
+
+                  {/* Threshold lines with colors */}
+                  {typeof warningLine === "number" && warningLine > 0 ? (
+                    <ReferenceLine
+                      y={warningLine}
+                      stroke="#f0ad4e"
+                      strokeDasharray="6 4"
+                      label={{ value: "Warning", position: "insideTopRight", fill: "#f0ad4e", fontSize: 12 }}
+                    />
+                  ) : null}
+
+                  {typeof limitLine === "number" && limitLine > 0 ? (
+                    <ReferenceLine
+                      y={limitLine}
+                      stroke="#d9534f"
+                      strokeDasharray="6 4"
+                      label={{ value: "Limit", position: "insideTopRight", fill: "#d9534f", fontSize: 12 }}
+                    />
+                  ) : null}
+
+                  {/* ETA vertical markers (estimated dates) */}
+                  {etaWarnTs ? (
+                    <ReferenceLine
+                      x={etaWarnTs}
+                      stroke="#f0ad4e"
+                      strokeDasharray="3 6"
+                      label={{ value: `ETA Warning: ${etaWarnTs}`, position: "top", fill: "#f0ad4e", fontSize: 11 }}
+                    />
+                  ) : null}
+
+                  {etaLimitTs ? (
+                    <ReferenceLine
+                      x={etaLimitTs}
+                      stroke="#d9534f"
+                      strokeDasharray="3 6"
+                      label={{ value: `ETA Limit: ${etaLimitTs}`, position: "top", fill: "#d9534f", fontSize: 11 }}
+                    />
+                  ) : null}
+
+                  {/* Lines with colors */}
+                  <Line type="monotone" dataKey="contacts" dot={false} name="Contacts" stroke="#5bc0de" strokeWidth={2} />
+
+                  {showDeltaLine ? (
+                    <Line
+                      type="monotone"
+                      dataKey="delta_h"
+                      yAxisId="delta"
+                      dot={false}
+                      name="Δ/h"
+                      connectNulls
+                      stroke="#5cb85c"
+                      strokeWidth={1.6}
+                    />
+                  ) : null}
+
+                  <Line
+                    type="monotone"
+                    dataKey="forecast_warn"
+                    dot={false}
+                    name="Forecast → Warning"
+                    connectNulls
+                    stroke="#f0ad4e"
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                  />
+
+                  <Line
+                    type="monotone"
+                    dataKey="forecast_limit"
+                    dot={false}
+                    name="Forecast → Limit"
+                    connectNulls
+                    stroke="#d9534f"
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                  />
                 </LineChart>
               ) : (
                 <div className="label" style={{ padding: "10px 0" }}>
@@ -943,13 +1134,23 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="label" style={{ marginTop: 8 }}>
-              Dashed horizontal lines: warning / limit. Forecast lines use burn rate + ETA.
+              Dashed horizontal lines: warning / limit. Forecast lines use burn rate + ETA. Vertical markers show ETA
+              timestamps.
             </div>
           </div>
 
           {/* Events */}
           <div className="analytics-card p-3 rounded text-white">
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 10,
+                flexWrap: "wrap",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
               <div style={{ fontWeight: 800 }}>Recent events</div>
 
               {/* Legend chips */}
@@ -1005,13 +1206,51 @@ export default function AnalyticsPage() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ textAlign: "left" }}>
-                    <th className="label" style={{ padding: "8px 6px", cursor: "pointer" }} onClick={() => toggleSort("created_at")}>Date</th>
-                    <th className="label" style={{ padding: "8px 6px" }}>Time</th>
-                    <th className="label" style={{ padding: "8px 6px", cursor: "pointer" }} onClick={() => toggleSort("event_type")}>Type</th>
-                    <th className="label" style={{ padding: "8px 6px", cursor: "pointer" }} onClick={() => toggleSort("event_details")}>Details</th>
-                    <th className="label" style={{ padding: "8px 6px", cursor: "pointer" }} onClick={() => toggleSort("old_value")}>Old</th>
-                    <th className="label" style={{ padding: "8px 6px", cursor: "pointer" }} onClick={() => toggleSort("new_value")}>New</th>
-                    <th className="label" style={{ padding: "8px 6px", cursor: "pointer" }} onClick={() => toggleSort("actor")}>Actor</th>
+                    <th
+                      className="label"
+                      style={{ padding: "8px 6px", cursor: "pointer" }}
+                      onClick={() => toggleSort("created_at")}
+                    >
+                      Date
+                    </th>
+                    <th className="label" style={{ padding: "8px 6px" }}>
+                      Time
+                    </th>
+                    <th
+                      className="label"
+                      style={{ padding: "8px 6px", cursor: "pointer" }}
+                      onClick={() => toggleSort("event_type")}
+                    >
+                      Type
+                    </th>
+                    <th
+                      className="label"
+                      style={{ padding: "8px 6px", cursor: "pointer" }}
+                      onClick={() => toggleSort("event_details")}
+                    >
+                      Details
+                    </th>
+                    <th
+                      className="label"
+                      style={{ padding: "8px 6px", cursor: "pointer" }}
+                      onClick={() => toggleSort("old_value")}
+                    >
+                      Old
+                    </th>
+                    <th
+                      className="label"
+                      style={{ padding: "8px 6px", cursor: "pointer" }}
+                      onClick={() => toggleSort("new_value")}
+                    >
+                      New
+                    </th>
+                    <th
+                      className="label"
+                      style={{ padding: "8px 6px", cursor: "pointer" }}
+                      onClick={() => toggleSort("actor")}
+                    >
+                      Actor
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1054,7 +1293,11 @@ export default function AnalyticsPage() {
                       );
                     })
                   ) : (
-                    <tr><td style={{ padding: 8 }} className="label" colSpan={7}>No events.</td></tr>
+                    <tr>
+                      <td style={{ padding: 8 }} className="label" colSpan={7}>
+                        No events.
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>
