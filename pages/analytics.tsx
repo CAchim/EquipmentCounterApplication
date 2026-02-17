@@ -297,12 +297,33 @@ export default function AnalyticsPage() {
 
   const filteredFixtures = useMemo(() => {
     const q = fixtureSearchDebounced.toLowerCase();
-    if (!q) return fixtures;
-    return fixtures.filter((x) => {
-      const hay = `${x.project_name ?? ""} ${x.adapter_code ?? ""} ${x.fixture_type ?? ""}`.toLowerCase();
-      return hay.includes(q);
+
+    // filter
+    const list = !q
+      ? fixtures
+      : fixtures.filter((x) => {
+          const hay = `${x.project_name ?? ""} ${x.adapter_code ?? ""} ${x.fixture_type ?? ""}`.toLowerCase();
+          return hay.includes(q);
+        });
+
+    // sort ascending (alphabetical)
+    return [...list].sort((a, b) => {
+      const pa = String(a.project_name ?? "").toLowerCase();
+      const pb = String(b.project_name ?? "").toLowerCase();
+      const c1 = pa.localeCompare(pb);
+      if (c1 !== 0) return c1;
+
+      const aa = String(a.adapter_code ?? "").toLowerCase();
+      const ab = String(b.adapter_code ?? "").toLowerCase();
+      const c2 = aa.localeCompare(ab);
+      if (c2 !== 0) return c2;
+
+      const fa = String(a.fixture_type ?? "").toLowerCase();
+      const fb = String(b.fixture_type ?? "").toLowerCase();
+      return fa.localeCompare(fb);
     });
   }, [fixtures, fixtureSearchDebounced]);
+
 
   // Keep selection valid
   useEffect(() => {
@@ -677,7 +698,7 @@ export default function AnalyticsPage() {
 
         <div style={{ gridColumn: "span 2" }}>
           <div style={labelStyle}>
-            Fixture <Hint text="Dropdown is filtered by the search box. It won’t move around while typing." />
+            Fixture <Hint text="Dropdown is filtered by the search box. It won't move around while typing." />
           </div>
           <select value={selectedFixtureKey} onChange={(e) => setSelectedFixtureKey(e.target.value)} style={fieldStyle}>
             {filteredFixtures.length ? (
@@ -698,13 +719,13 @@ export default function AnalyticsPage() {
             <Hint text="Hours used for burn-rate calculation. Longer = smoother but slower to react." />
           </div>
           <select value={lookbackHours} onChange={(e) => setLookbackHours(Number(e.target.value))} style={fieldStyle}>
-            <option value={12}>12</option>
-            <option value={24}>24</option>
-            <option value={48}>48</option>
-            <option value={72}>72</option>
-            <option value={168}>168 (7d)</option>
-            <option value={336}>336 (14d)</option>
-            <option value={720}>720 (30d)</option>
+            <option value={12}>12 hours</option>
+            <option value={24}>24 hours</option>
+            <option value={48}>48 hours</option>
+            <option value={72}>72 hours</option>
+            <option value={168}>7 days</option>
+            <option value={336}>14 days</option>
+            <option value={720}>30 days</option>
           </select>
         </div>
 
@@ -713,14 +734,14 @@ export default function AnalyticsPage() {
             Series range <Hint text="Time window shown in the chart. You can go up to 365 days." />
           </div>
           <select value={seriesHours} onChange={(e) => setSeriesHours(Number(e.target.value))} style={fieldStyle}>
-            <option value={24}>24</option>
-            <option value={72}>72</option>
-            <option value={168}>168 (7d)</option>
-            <option value={336}>336 (14d)</option>
-            <option value={720}>720 (30d)</option>
-            <option value={1440}>1440 (60d)</option>
-            <option value={2160}>2160 (90d)</option>
-            <option value={8760}>8760 (365d)</option>
+            <option value={24}>24 hours</option>
+            <option value={72}>72 hours</option>
+            <option value={168}>7 days</option>
+            <option value={336}>14 days</option>
+            <option value={720}>30 days</option>
+            <option value={1440}>60 days</option>
+            <option value={2160}>90 days</option>
+            <option value={8760}>365 days</option>
           </select>
         </div>
 
