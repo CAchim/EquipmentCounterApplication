@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 
-// ✅ Remove ResponsiveContainer (it causes width/height -1 warnings when parent is hidden/0px)
-// We'll render LineChart with explicit width/height from a measured container.
 
 const LineChart = dynamic(() => import("recharts").then((m) => m.LineChart), { ssr: false });
 const Line = dynamic(() => import("recharts").then((m) => m.Line), { ssr: false });
@@ -306,20 +304,27 @@ export default function AnalyticsPage() {
           return hay.includes(q);
         });
 
-    // sort ascending (alphabetical)
+    const norm = (v: any) =>
+      String(v ?? "")
+        .replace(/[\u200B-\u200D\uFEFF]/g, "") // zero-width
+        .replace(/\u00A0/g, " ") // nbsp -> space
+        .trim()
+        .toLowerCase()
+        .normalize("NFKD");
+
     return [...list].sort((a, b) => {
-      const pa = String(a.project_name ?? "").toLowerCase();
-      const pb = String(b.project_name ?? "").toLowerCase();
+      const pa = norm(a.project_name);
+      const pb = norm(b.project_name);
       const c1 = pa.localeCompare(pb);
       if (c1 !== 0) return c1;
 
-      const aa = String(a.adapter_code ?? "").toLowerCase();
-      const ab = String(b.adapter_code ?? "").toLowerCase();
+      const aa = norm(a.adapter_code);
+      const ab = norm(b.adapter_code);
       const c2 = aa.localeCompare(ab);
       if (c2 !== 0) return c2;
 
-      const fa = String(a.fixture_type ?? "").toLowerCase();
-      const fb = String(b.fixture_type ?? "").toLowerCase();
+      const fa = norm(a.fixture_type);
+      const fb = norm(b.fixture_type);
       return fa.localeCompare(fb);
     });
   }, [fixtures, fixtureSearchDebounced]);
