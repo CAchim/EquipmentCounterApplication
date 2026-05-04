@@ -48,6 +48,11 @@ type SeriesPoint = {
   resets: number;
 };
 
+type ProbeRow = {
+  part_number: string;
+  qty: number;
+};
+
 type EventRow = {
   entry_id: number;
   created_at: string;
@@ -62,6 +67,24 @@ type EventRow = {
 type DailyRow = { day: string; resets: number; tp_events: number };
 type DemandAggRow = { part_number: string; total_qty: number; fixtures: number };
 
+type ProbeDemandUsageSummary = {
+  plant_resets_this_month: number;
+  fixtures_with_probe_requests: number;
+  unique_part_numbers: number;
+  total_requested_qty: number;
+  estimated_used_qty: number;
+};
+
+type SelectedFixtureProbeDetail = {
+  project_name: string | null;
+  adapter_code: string;
+  fixture_type: string;
+  current_month_resets: number;
+  requested_test_probes: ProbeRow[];
+  total_requested_qty: number;
+  estimated_used_qty: number;
+};
+
 type SortKey = "created_at" | "event_type" | "actor" | "old_value" | "new_value" | "event_details";
 type SortDir = "asc" | "desc";
 type TabKey = "overview" | "probe";
@@ -71,6 +94,19 @@ function fmtHours(h: number | null | undefined) {
   if (h <= 0) return "0h";
   if (h < 48) return `${h.toFixed(1)}h`;
   return `${(h / 24).toFixed(1)}d`;
+}
+
+function fmtDateTime(ts: string | null) {
+  if (!ts) return "—";
+  const d = new Date(ts.replace(" ", "T"));
+  if (isNaN(d.getTime())) return ts;
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function fmtRate(r: number | null | undefined) {
@@ -100,8 +136,8 @@ function parseChartTsToDate(sample_ts: string) {
 }
 
 /** Robust fetch JSON */
-async function fetchJson<T = any>(url: string): Promise<T> {
-  const r = await fetch(url);
+async function fetchJson<T = any>(url: string, init?: RequestInit): Promise<T> {
+  const r = await fetch(url, init);
   const ct = r.headers.get("content-type") || "";
   const text = await r.text();
 
@@ -188,6 +224,19 @@ export default function AnalyticsPage() {
   const [daily, setDaily] = useState<DailyRow[]>([]);
   const [demandWeek, setDemandWeek] = useState<DemandAggRow[]>([]);
   const [demandMonth, setDemandMonth] = useState<DemandAggRow[]>([]);
+  const [probeDemandSummary, setProbeDemandSummary] = useState<ProbeDemandUsageSummary | null>(null);
+  const [selectedFixtureProbeInfo, setSelectedFixtureProbeInfo] = useState<SelectedFixtureProbeDetail | null>(null);
+
+  const demandSummary = useMemo(() => {
+    const sum = (rows: DemandAggRow[]) => ({
+      partNumbers: rows.length,
+      totalQty: rows.reduce((acc, row) => acc + Number(row.total_qty ?? 0), 0),
+    });
+    return {
+      week: sum(demandWeek),
+      month: sum(demandMonth),
+    };
+  }, [demandWeek, demandMonth]);
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -208,6 +257,8 @@ export default function AnalyticsPage() {
 
   // Measured chart container (explicit LineChart width/height)
   const chartBox = useMeasuredSize<HTMLDivElement>();
+  const fixturesRequestSeq = useRef(0);
+  const analyticsRequestSeq = useRef(0);
 
   useEffect(() => setMounted(true), []);
 
@@ -241,9 +292,11 @@ export default function AnalyticsPage() {
         const list = Array.isArray(j.plants) ? j.plants : [];
         setPlants(list);
 
-        if (list.length === 1 && list[0]?.plant_name) {
-          setSelectedPlant(list[0].plant_name);
-        }
+        const firstPlant = list[0]?.plant_name;
+        setSelectedPlant((current) => {
+          if (!firstPlant) return current;
+          return list.some((p) => p.plant_name === current) ? current : firstPlant;
+        });
       } catch (e: any) {
         console.error(e);
         setPlants([]);
@@ -254,13 +307,18 @@ export default function AnalyticsPage() {
   // Load fixtures for plant
   useEffect(() => {
     if (!selectedPlant) return;
+    const controller = new AbortController();
+    const requestId = ++fixturesRequestSeq.current;
     setErr(null);
 
     (async () => {
       try {
         const j = await fetchJson<{ fixtures: Fixture[] }>(
-          `/api/analytics/fixtures?plant=${encodeURIComponent(selectedPlant)}`
+          `/api/analytics/fixtures?plant=${encodeURIComponent(selectedPlant)}`,
+          { signal: controller.signal }
         );
+        if (controller.signal.aborted || requestId !== fixturesRequestSeq.current) return;
+
         const list = Array.isArray(j.fixtures) ? j.fixtures : [];
         setFixtures(list);
 
@@ -274,9 +332,12 @@ export default function AnalyticsPage() {
         setDaily([]);
         setDemandWeek([]);
         setDemandMonth([]);
+        setProbeDemandSummary(null);
+        setSelectedFixtureProbeInfo(null);
         setLastLoadedAt("");
         setEventFilter("ALL");
       } catch (e: any) {
+        if (controller.signal.aborted || requestId !== fixturesRequestSeq.current) return;
         setFixtures([]);
         setSelectedFixtureKey("");
         setForecast(null);
@@ -285,11 +346,14 @@ export default function AnalyticsPage() {
         setDaily([]);
         setDemandWeek([]);
         setDemandMonth([]);
+        setProbeDemandSummary(null);
+        setSelectedFixtureProbeInfo(null);
         setLastLoadedAt("");
         setEventFilter("ALL");
         setErr(String(e?.message || e));
       }
     })();
+    return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPlant]);
 
@@ -346,8 +410,9 @@ export default function AnalyticsPage() {
     return filteredFixtures.find((x) => x.adapter_code === a && x.fixture_type === f) || null;
   }, [filteredFixtures, selectedFixtureKey]);
 
-  async function loadAnalytics() {
+  async function loadAnalytics(signal?: AbortSignal) {
     if (!selectedPlant || !selectedFixture) return;
+    const requestId = ++analyticsRequestSeq.current;
 
     setLoading(true);
     setErr(null);
@@ -360,21 +425,33 @@ export default function AnalyticsPage() {
 
       const [jf, js, je, jd, jdem] = await Promise.all([
         fetchJson<{ forecast: ForecastRow | null }>(
-          `/api/analytics/forecast?${base}&lookback=${encodeURIComponent(String(lookbackHours))}`
+          `/api/analytics/forecast?${base}&lookback=${encodeURIComponent(String(lookbackHours))}`,
+          { signal }
         ),
         fetchJson<{ series: SeriesPoint[] }>(
-          `/api/analytics/series?${base}&hours=${encodeURIComponent(String(seriesHours))}`
+          `/api/analytics/series?${base}&hours=${encodeURIComponent(String(seriesHours))}`,
+          { signal }
         ),
-        fetchJson<{ events: EventRow[] }>(`/api/analytics/events?${base}&limit=80`),
+        fetchJson<{ events: EventRow[] }>(`/api/analytics/events?${base}&limit=80`, { signal }),
         fetchJson<{ daily: DailyRow[] }>(
-          `/api/analytics/plant-daily?plant=${encodeURIComponent(selectedPlant)}&days=14`
+          `/api/analytics/plant-daily?plant=${encodeURIComponent(selectedPlant)}&days=14`,
+          { signal }
         ),
-        fetchJson<{ week: { demandByPn: DemandAggRow[] }; month: { demandByPn: DemandAggRow[] } }>(
-          `/api/analytics/probe-demand?plant=${encodeURIComponent(selectedPlant)}&lookback=${encodeURIComponent(
+        fetchJson<{
+          currentMonthUsage?: ProbeDemandUsageSummary;
+          selectedFixture?: SelectedFixtureProbeDetail;
+          week: { demandByPn: DemandAggRow[] };
+          month: { demandByPn: DemandAggRow[] };
+        }>(
+          `/api/analytics/probe-demand?plant=${encodeURIComponent(selectedPlant)}&adapter=${encodeURIComponent(
+            selectedFixture.adapter_code
+          )}&fixture=${encodeURIComponent(selectedFixture.fixture_type)}&lookback=${encodeURIComponent(
             String(lookbackHours)
-          )}`
+          )}`,
+          { signal }
         ),
       ]);
+      if (signal?.aborted || requestId !== analyticsRequestSeq.current) return;
 
       setForecast(jf.forecast ?? null);
       setSeries(Array.isArray(js.series) ? js.series : []);
@@ -382,11 +459,14 @@ export default function AnalyticsPage() {
       setDaily(Array.isArray(jd.daily) ? jd.daily : []);
       setDemandWeek(Array.isArray(jdem.week?.demandByPn) ? jdem.week.demandByPn : []);
       setDemandMonth(Array.isArray(jdem.month?.demandByPn) ? jdem.month.demandByPn : []);
+      setProbeDemandSummary(jdem.currentMonthUsage ?? null);
+      setSelectedFixtureProbeInfo(jdem.selectedFixture ?? null);
       setLastLoadedAt(new Date().toLocaleString());
 
       // keep filter valid after refresh
       setEventFilter("ALL");
     } catch (e: any) {
+      if (signal?.aborted || requestId !== analyticsRequestSeq.current) return;
       setErr(String(e?.message || e));
       setForecast(null);
       setSeries([]);
@@ -394,18 +474,25 @@ export default function AnalyticsPage() {
       setDaily([]);
       setDemandWeek([]);
       setDemandMonth([]);
+      setProbeDemandSummary(null);
+      setSelectedFixtureProbeInfo(null);
       setLastLoadedAt("");
       setEventFilter("ALL");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted && requestId === analyticsRequestSeq.current) {
+        setLoading(false);
+      }
     }
   }
 
   // auto-load
   useEffect(() => {
-    if (selectedFixture) loadAnalytics();
+    if (!selectedFixture) return;
+    const controller = new AbortController();
+    loadAnalytics(controller.signal);
+    return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFixtureKey, lookbackHours, seriesHours]);
+  }, [selectedPlant, selectedFixtureKey, lookbackHours, seriesHours]);
 
   const warningLine = forecast?.warning_at ?? selectedFixture?.warning_at ?? null;
   const limitLine = forecast?.contacts_limit ?? selectedFixture?.contacts_limit ?? null;
@@ -752,7 +839,7 @@ export default function AnalyticsPage() {
 
         <div>
           <button
-            onClick={loadAnalytics}
+            onClick={() => loadAnalytics()}
             disabled={loading || !selectedFixture}
             title="Fetch newest analytics for current selection"
             style={{
@@ -801,89 +888,191 @@ export default function AnalyticsPage() {
 
       {/* TAB: PROBE DEMAND */}
       {tab === "probe" ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: 12 }}>
-          <div className="analytics-card p-3 rounded text-white">
-            <div style={{ fontWeight: 800, marginBottom: 8 }}>Probe demand totals (Next 7 days)</div>
-            <div className="label" style={{ opacity: 0.9, marginBottom: 10 }}>
-              Aggregated maintenance demand across fixtures in the selected plant.
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12, marginBottom: 12 }}>
+            <div className="analytics-card p-3 rounded text-white">
+              <div style={{ fontWeight: 800, marginBottom: 8 }}>Current month probe usage</div>
+              <div className="label" style={{ opacity: 0.9, marginBottom: 10 }}>
+                Estimated plant consumption based on resets this month and configured fixture probe kits.
+              </div>
+              <div className="value" style={{ fontSize: 22 }}>
+                {probeDemandSummary ? probeDemandSummary.estimated_used_qty : "—"}
+              </div>
+              <div className="label" style={{ marginTop: 6 }}>
+                {probeDemandSummary ? (
+                  <>
+                    {probeDemandSummary.plant_resets_this_month} resets · {probeDemandSummary.fixtures_with_probe_requests} fixtures · {probeDemandSummary.unique_part_numbers} part numbers
+                  </>
+                ) : (
+                  "Load the probe demand report to see the current month summary."
+                )}
+              </div>
             </div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ textAlign: "left" }}>
-                    <th className="label" style={{ padding: "8px 6px" }}>
-                      Part number
-                    </th>
-                    <th className="label" style={{ padding: "8px 6px" }}>
-                      Total qty
-                    </th>
-                    <th className="label" style={{ padding: "8px 6px" }}>
-                      Fixtures
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {demandWeek.length ? (
-                    demandWeek.slice(0, 25).map((r) => (
-                      <tr key={`w-${r.part_number}`} style={{ borderTop: "1px solid rgba(255,255,255,0.10)" }}>
-                        <td style={{ padding: "8px 6px" }}>{r.part_number}</td>
-                        <td style={{ padding: "8px 6px" }}>{r.total_qty}</td>
-                        <td style={{ padding: "8px 6px" }}>{r.fixtures}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td className="label" style={{ padding: 8 }} colSpan={3}>
-                        No predicted maintenance this week.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+
+            <div className="analytics-card p-3 rounded text-white">
+              <div style={{ fontWeight: 800, marginBottom: 8 }}>Maintenance demand this month</div>
+              <div className="label" style={{ opacity: 0.9, marginBottom: 10 }}>
+                Fixtures already at limit or forecasted to hit limit within the next 30 days.
+              </div>
+              <div className="label" style={{ opacity: 0.9, marginBottom: 8 }}>
+                {demandSummary.month.partNumbers} part numbers · {demandSummary.month.totalQty} total units
+              </div>
             </div>
           </div>
 
-          <div className="analytics-card p-3 rounded text-white">
-            <div style={{ fontWeight: 800, marginBottom: 8 }}>Probe demand totals (Next 30 days)</div>
-            <div className="label" style={{ opacity: 0.9, marginBottom: 10 }}>
-              Good for planning orders / stock.
+          {selectedFixture ? (
+            <div className="analytics-card p-3 rounded text-white" style={{ marginBottom: 12 }}>
+              <div style={{ fontWeight: 800, marginBottom: 8 }}>Selected fixture probe details</div>
+              <div className="label" style={{ opacity: 0.9, marginBottom: 10 }}>
+                Shows the requested test probes for the selected fixture and estimated usage this month.
+              </div>
+              <div className="label" style={{ marginBottom: 6 }}>
+                {selectedFixture.project_name} — {selectedFixture.adapter_code} / {selectedFixture.fixture_type}
+              </div>
+              {selectedFixtureProbeInfo ? (
+                <>
+                  <div className="label" style={{ marginBottom: 6 }}>
+                    Current month resets: {selectedFixtureProbeInfo.current_month_resets}
+                  </div>
+                  <div className="label" style={{ marginBottom: 6 }}>
+                    Requested probes total: {selectedFixtureProbeInfo.total_requested_qty}
+                  </div>
+                  <div className="label" style={{ marginBottom: 12 }}>
+                    Estimated probes used this month: {selectedFixtureProbeInfo.estimated_used_qty}
+                  </div>
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ textAlign: "left" }}>
+                          <th className="label" style={{ padding: "8px 6px" }}>
+                            Part number
+                          </th>
+                          <th className="label" style={{ padding: "8px 6px" }}>
+                            Qty requested
+                          </th>
+                          <th className="label" style={{ padding: "8px 6px" }}>
+                            Estimated used
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedFixtureProbeInfo.requested_test_probes.length ? (
+                          selectedFixtureProbeInfo.requested_test_probes.map((probe) => (
+                            <tr key={probe.part_number} style={{ borderTop: "1px solid rgba(255,255,255,0.10)" }}>
+                              <td style={{ padding: "8px 6px" }}>{probe.part_number}</td>
+                              <td style={{ padding: "8px 6px" }}>{probe.qty}</td>
+                              <td style={{ padding: "8px 6px" }}>
+                                {probe.qty * selectedFixtureProbeInfo.current_month_resets}
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td className="label" style={{ padding: 8 }} colSpan={3}>
+                              No requested test probes are registered for this fixture.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : (
+                <div className="label">Probe request data is not available for this fixture yet.</div>
+              )}
             </div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ textAlign: "left" }}>
-                    <th className="label" style={{ padding: "8px 6px" }}>
-                      Part number
-                    </th>
-                    <th className="label" style={{ padding: "8px 6px" }}>
-                      Total qty
-                    </th>
-                    <th className="label" style={{ padding: "8px 6px" }}>
-                      Fixtures
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {demandMonth.length ? (
-                    demandMonth.slice(0, 25).map((r) => (
-                      <tr key={`m-${r.part_number}`} style={{ borderTop: "1px solid rgba(255,255,255,0.10)" }}>
-                        <td style={{ padding: "8px 6px" }}>{r.part_number}</td>
-                        <td style={{ padding: "8px 6px" }}>{r.total_qty}</td>
-                        <td style={{ padding: "8px 6px" }}>{r.fixtures}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td className="label" style={{ padding: 8 }} colSpan={3}>
-                        No predicted maintenance this month.
-                      </td>
+          ) : null}
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: 12 }}>
+            <div className="analytics-card p-3 rounded text-white">
+              <div style={{ fontWeight: 800, marginBottom: 8 }}>Probe demand totals (Next 7 days)</div>
+              <div className="label" style={{ opacity: 0.9, marginBottom: 10 }}>
+                Aggregated maintenance demand across fixtures in the selected plant.
+              </div>
+              <div className="label" style={{ opacity: 0.9, marginBottom: 8 }}>
+                {demandSummary.week.partNumbers} part numbers · {demandSummary.week.totalQty} total units
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ textAlign: "left" }}>
+                      <th className="label" style={{ padding: "8px 6px" }}>
+                        Part number
+                      </th>
+                      <th className="label" style={{ padding: "8px 6px" }}>
+                        Total qty
+                      </th>
+                      <th className="label" style={{ padding: "8px 6px" }}>
+                        Fixtures
+                      </th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {demandWeek.length ? (
+                      demandWeek.slice(0, 25).map((r) => (
+                        <tr key={`w-${r.part_number}`} style={{ borderTop: "1px solid rgba(255,255,255,0.10)" }}>
+                          <td style={{ padding: "8px 6px" }}>{r.part_number}</td>
+                          <td style={{ padding: "8px 6px" }}>{r.total_qty}</td>
+                          <td style={{ padding: "8px 6px" }}>{r.fixtures}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td className="label" style={{ padding: 8 }} colSpan={3}>
+                          No predicted maintenance this week.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="analytics-card p-3 rounded text-white">
+              <div style={{ fontWeight: 800, marginBottom: 8 }}>Probe demand totals (Next 30 days)</div>
+              <div className="label" style={{ opacity: 0.9, marginBottom: 10 }}>
+                Good for planning orders / stock.
+              </div>
+              <div className="label" style={{ opacity: 0.9, marginBottom: 8 }}>
+                {demandSummary.month.partNumbers} part numbers · {demandSummary.month.totalQty} total units
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ textAlign: "left" }}>
+                      <th className="label" style={{ padding: "8px 6px" }}>
+                        Part number
+                      </th>
+                      <th className="label" style={{ padding: "8px 6px" }}>
+                        Total qty
+                      </th>
+                      <th className="label" style={{ padding: "8px 6px" }}>
+                        Fixtures
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {demandMonth.length ? (
+                      demandMonth.slice(0, 25).map((r) => (
+                        <tr key={`m-${r.part_number}`} style={{ borderTop: "1px solid rgba(255,255,255,0.10)" }}>
+                          <td style={{ padding: "8px 6px" }}>{r.part_number}</td>
+                          <td style={{ padding: "8px 6px" }}>{r.total_qty}</td>
+                          <td style={{ padding: "8px 6px" }}>{r.fixtures}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td className="label" style={{ padding: 8 }} colSpan={3}>
+                          No predicted maintenance this month.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
+        </>
       ) : null}
 
       {/* TAB: OVERVIEW */}
@@ -1101,7 +1290,15 @@ export default function AnalyticsPage() {
                       x={etaWarnTs}
                       stroke="#f0ad4e"
                       strokeDasharray="3 6"
-                      label={{ value: `ETA Warning: ${etaWarnTs}`, position: "top", fill: "#f0ad4e", fontSize: 11 }}
+                      strokeWidth={2}
+                      label={{
+                        value: `Warning ETA\n${fmtDateTime(etaWarnTs)}`,
+                        position: "top",
+                        fill: "#f0ad4e",
+                        fontSize: 12,
+                        fontWeight: "bold",
+                        textAnchor: "middle",
+                      }}
                     />
                   ) : null}
 
@@ -1110,7 +1307,15 @@ export default function AnalyticsPage() {
                       x={etaLimitTs}
                       stroke="#d9534f"
                       strokeDasharray="3 6"
-                      label={{ value: `ETA Limit: ${etaLimitTs}`, position: "top", fill: "#d9534f", fontSize: 11 }}
+                      strokeWidth={2}
+                      label={{
+                        value: `Limit ETA\n${fmtDateTime(etaLimitTs)}`,
+                        position: "top",
+                        fill: "#d9534f",
+                        fontSize: 12,
+                        fontWeight: "bold",
+                        textAnchor: "middle",
+                      }}
                     />
                   ) : null}
 
@@ -1163,6 +1368,13 @@ export default function AnalyticsPage() {
               Dashed horizontal lines: warning / limit. Forecast lines use burn rate + ETA. Vertical markers show ETA
               timestamps.
             </div>
+            {(etaWarnTs || etaLimitTs) && (
+              <div className="label" style={{ marginTop: 8, fontWeight: "bold" }}>
+                Forecasted dates: {etaWarnTs ? `Warning at ${fmtDateTime(etaWarnTs)}` : ""}
+                {etaWarnTs && etaLimitTs ? " · " : ""}
+                {etaLimitTs ? `Limit at ${fmtDateTime(etaLimitTs)}` : ""}
+              </div>
+            )}
           </div>
 
           {/* Events */}

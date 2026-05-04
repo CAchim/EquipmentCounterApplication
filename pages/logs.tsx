@@ -20,7 +20,7 @@ const TIMESTAMP_KEY = "last_update";
 type DateFilter = "all" | "24h" | "7d" | "30d" | "custom";
 type GroupMode = "plain" | "equipment" | "day";
 
-// 4 “main” action types you want to color + use as legend/filter
+// 4 main action types you want to color + use as legend/filter
 type ActionKey = "LIMIT_CHANGE" | "OWNER_CHANGE" | "CONTACTS_UPDATED" | "COUNTER_RESET" | "OTHER";
 
 const ACTION_DEFS: Array<{
@@ -29,7 +29,7 @@ const ACTION_DEFS: Array<{
   // Strong button color (full color)
   btnBg: string;
   btnText: string;
-  // “Pill” background in modal
+  // Pill background in modal
   pillBg: string;
   pillText: string;
   // Matches db_action text
@@ -101,7 +101,7 @@ function getActionDef(actionKey: ActionKey) {
 }
 
 function buildCsv(rows: DbLogRow[], keys: string[], timestampKey: string) {
-  // Expand timestamp into Date + Time like UI
+    // Expand timestamp into Date + Time like UI.
   const header: string[] = ["#"];
   const csvKeys: Array<{ key: string; as: "single" | "date" | "time" }> = [];
 
@@ -150,7 +150,7 @@ function buildCsv(rows: DbLogRow[], keys: string[], timestampKey: string) {
     lines.push(out.map(escape).join(","));
   });
 
-  // Add BOM for Excel
+    // Add BOM for Excel.
   return "\ufeff" + lines.join("\n");
 }
 
@@ -295,7 +295,7 @@ const LogsPage = () => {
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
-  // Base filter: date + search (THIS is what legend counters should reflect)
+  // Base filter: date + search. Legend counters reflect this set.
   const baseFilteredLogs = useMemo(() => {
     const now = new Date();
 
@@ -350,7 +350,7 @@ const LogsPage = () => {
     });
   }, [logs, dateFilter, customFrom, customTo, normalizedSearch]);
 
-  // Legend counters (do NOT change when clicking legend buttons)
+  // Legend counters do not change when clicking legend buttons.
   const legendCounts = useMemo(() => {
     const counts: Record<ActionKey, number> = {
       LIMIT_CHANGE: 0,
@@ -469,7 +469,7 @@ const LogsPage = () => {
     return (
       <span className="d-inline-flex align-items-center gap-1">
         {label}
-        {isSorted && <span className="logs-sort-indicator">{direction === "asc" ? "▲" : "▼"}</span>}
+        {isSorted && <span className="logs-sort-indicator">{direction === "asc" ? "^" : "v"}</span>}
       </span>
     );
   };
@@ -482,7 +482,7 @@ const LogsPage = () => {
     return cols;
   }, [columnKeys]);
 
-  // Grouped view rows (in-table “header” rows)
+  // Grouped view rows.
   const groupedRows = useMemo(() => {
     if (groupMode === "plain") {
       return [{ type: "rows" as const, rows: sortedLogs }];
@@ -507,7 +507,7 @@ const LogsPage = () => {
       return groups.map(([k, rows]) => {
         const [plant, adapter, ftype] = k.split("||");
         const project = rows.find((x) => x.project_name)?.project_name;
-        const title = `${plant} • ${adapter}/${ftype}${project ? ` • ${project}` : ""}`;
+        const title = `${plant} - ${adapter}/${ftype}${project ? ` - ${project}` : ""}`;
         return { type: "group" as const, title, rows };
       });
     }
@@ -543,7 +543,7 @@ const LogsPage = () => {
       if (set.has(key)) set.delete(key);
       else set.add(key);
 
-      // If user selects ALL 4 main ones, treat as “all” (empty filter)
+      // If user selects ALL 4 main ones, treat as all (empty filter).
       const next = Array.from(set);
       const main = next.filter((k) => k !== "OTHER");
       if (main.length === 4 && !next.includes("OTHER")) return [];
@@ -937,7 +937,7 @@ const LogsPage = () => {
                   <div className="d-flex flex-column gap-2">
                     <h5 className="mb-0">Log details</h5>
 
-                    {/* “Legend” inside modal, matching row colors */}
+                    {/* Legend inside modal, matching row colors. */}
                     <div
                       className="logs-pill"
                       style={{
@@ -965,7 +965,7 @@ const LogsPage = () => {
                       const value =
                         selectedLog[key] !== null && selectedLog[key] !== undefined ? String(selectedLog[key]) : "";
 
-                      // Make db_action value itself “colored”, acting as legend
+                      // Make db_action value itself colored, acting as legend.
                       if (key === "db_action") {
                         const k = getActionKeyFromRow(selectedLog);
                         const def = getActionDef(k);

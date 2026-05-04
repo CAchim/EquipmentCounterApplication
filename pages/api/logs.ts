@@ -24,7 +24,7 @@ export default async function handler(
         .json({ status: 400, message: "Missing action parameter" });
     }
 
-    // 🔹 NextAuth v4 pages router: (req, res, authOptions)
+    // NextAuth v4 pages router: (req, res, authOptions)
     const session: any = await getServerSession(req, res, authOptions as any);
 
     if (!session) {
