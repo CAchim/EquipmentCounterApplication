@@ -749,8 +749,16 @@ select.form-control {
     gap: 0.25rem;
   }
 
+  .navbar-brand {
+    margin-right: 0.25rem !important;
+  }
+
+  .navbar-right .me-3 {
+    margin-right: 0.35rem !important;
+  }
+
   .navbar-logo-link {
-    max-width: 46vw;
+    max-width: 44vw;
     min-width: 0;
     overflow: hidden;
   }
@@ -1291,17 +1299,17 @@ $bp-phone: 575px;
 
 .projects-toolbar {
   @media (max-width: $bp-phone) {
-    flex-direction: column;
-    align-items: stretch;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 48px;
+    align-items: center !important;
     gap: 0.5rem;
-    margin-inline: 0.5rem;
+    margin-inline: 0.5rem !important;
   }
 }
 
 .projects-search-form {
   @media (max-width: $bp-phone) {
-    width: 100%;
-    justify-content: center;
+    display: contents !important;
   }
 }
 
@@ -1310,13 +1318,48 @@ $bp-phone: 575px;
   max-width: 100%;
 
   @media (max-width: $bp-phone) {
+    grid-column: 1 / -1;
     width: 100%;
+  }
+}
+
+.projects-search-button {
+  @media (max-width: $bp-phone) {
+    grid-column: 1;
+    width: 100% !important;
+    min-height: 42px;
+    margin: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
 .projects-toolbar-menu {
   @media (max-width: $bp-phone) {
-    align-self: flex-end;
+    grid-column: 2;
+    align-self: stretch;
+    justify-self: stretch;
+    width: 48px;
+    min-width: 48px;
+  }
+}
+
+.projects-menu-button {
+  @media (max-width: $bp-phone) {
+    width: 48px;
+    min-height: 42px;
+    padding: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  img {
+    @media (max-width: $bp-phone) {
+      width: 36px;
+      height: 36px;
+    }
   }
 }
 
@@ -1382,11 +1425,14 @@ $bp-phone: 575px;
 }
 
 .projects-mobile-probes {
-  max-height: 96px;
-  overflow-y: auto;
+  max-height: min(34vh, 220px);
+  overflow-y: scroll;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   border-radius: 8px;
   background: #f8f9fa;
-  padding: 0.45rem 0.55rem;
+  padding: 0.45rem 0.65rem;
   font-size: 0.82rem;
 }
 

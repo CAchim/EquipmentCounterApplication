@@ -717,7 +717,7 @@ const ProjectsTable = (props: any) => {
               aria-label="Filter"
             />
             <button
-              className="btn btn-primary scaleEffect fs-6 fw-bolder w-auto mx-2 my-2"
+              className="btn btn-primary scaleEffect fs-6 fw-bolder w-auto mx-2 my-2 projects-search-button"
               type="submit"
             >
               Search
@@ -738,7 +738,7 @@ const ProjectsTable = (props: any) => {
               style={{ overflow: 'visible', zIndex: 1000 }}
             >
               <button
-                className="btn btn-link buttons-hover"
+                className="btn btn-link buttons-hover projects-menu-button"
                 type="button"
                 id="actionMenu"
                 data-bs-toggle="dropdown"
