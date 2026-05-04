@@ -1014,11 +1014,11 @@ const ProjectsTable = (props: any) => {
 
         <nav
           aria-label="Page navigation"
-          className="w-100 d-flex justify-content-center mt-5 mt-lg-2 px-2"
+          className="projects-pagination-nav w-100 d-flex justify-content-center mt-5 mt-lg-2 px-2"
         >
-          <ul className="pagination d-flex justify-content-center">
+          <ul className="pagination projects-pagination d-flex justify-content-center">
             <li className="page-item">
-              <button className="page-link fixed-width" onClick={previousPage}>
+              <button className="page-link fixed-width projects-pagination-edge" onClick={previousPage}>
                 Previous
               </button>
             </li>
@@ -1041,7 +1041,7 @@ const ProjectsTable = (props: any) => {
               </li>
             ))}
             <li className="page-item">
-              <button className="page-link fixed-width" onClick={nextPage}>
+              <button className="page-link fixed-width projects-pagination-edge" onClick={nextPage}>
                 Next
               </button>
             </li>
