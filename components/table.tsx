@@ -130,46 +130,37 @@ const ProjectsTable = (props: any) => {
     window.scrollTo(0, 0)
   }, [currentPage, counterInfoDB])
 
-  const handleEditButton = (e: any) => {
+  const setRowEditMode = (rowNumber: number, editMode: boolean) => {
     setEditMode(
-      EditModeForAllEntries.map((item: any) => {
-        if (item.entry_id === parseInt(e.target.id) - 1) {
-          item = { entry_id: item.entry_id, editMode: true }
-        }
-        return item
-      }),
+      EditModeForAllEntries.map((item: any) =>
+        item.entry_id === rowNumber - 1 ? { entry_id: item.entry_id, editMode } : item
+      ),
     )
   }
-  const handleSaveButton = async (e: any) => {
-    setEditMode(
-      EditModeForAllEntries.map((item: any) => {
-        if (item.entry_id === parseInt(e.target.id) - 1) {
-          item = { entry_id: item.entry_id, editMode: false }
-        }
-        return item
-      }),
-    )
 
-    let ownerEmailFromEdit = document.getElementById(
-      `${e.target.id - 1}_owner_email`,
-    ) as HTMLInputElement | null
-    let contactsLimitFromEdit = document.getElementById(
-      `${e.target.id - 1}_contacts_limit`,
-    ) as HTMLInputElement | null
-    let warningAtFromEdit = document.getElementById(
-      `${e.target.id - 1}_warning_at`,
-    ) as HTMLInputElement | null
+  const handleEditButton = (e: React.MouseEvent<HTMLButtonElement>) => {
+    setRowEditMode(Number(e.currentTarget.id), true)
+  }
+
+  const saveProjectChanges = async (
+    rowNumber: number,
+    ownerEmailValue: string,
+    contactsLimitValue: string,
+    warningAtValue: string,
+  ) => {
+    setRowEditMode(rowNumber, false)
 
     let updateOwner = false
     let updateContactsLimit = false
     let updateWarning = false
 
-    if (ownerEmailFromEdit && ownerEmailFromEdit.value !== '') updateOwner = true
-    if (contactsLimitFromEdit && contactsLimitFromEdit.value !== '') updateContactsLimit = true
-    if (warningAtFromEdit && warningAtFromEdit.value !== '') updateWarning = true
+    if (ownerEmailValue !== '') updateOwner = true
+    if (contactsLimitValue !== '') updateContactsLimit = true
+    if (warningAtValue !== '') updateWarning = true
 
     // XOR between contact limit and warning -> if only one is provided, block
     if (updateContactsLimit ? !updateWarning : updateWarning) {
+      setRowEditMode(rowNumber, true)
       props.openModalAction({
         title: 'Error!',
         description: `In case you want to update Limit and Warning, you must fill in both of the fields!`,
@@ -179,7 +170,7 @@ const ProjectsTable = (props: any) => {
       return
     }
 
-    const indexOfEntryToBeSaved = e.target.id - 1
+    const indexOfEntryToBeSaved = rowNumber - 1
     const projectToBeSaved: Project = counterInfoDB[indexOfEntryToBeSaved]
     const loggedUser: string = String(
       session?.user?.email || session?.user?.name,
@@ -193,14 +184,14 @@ const ProjectsTable = (props: any) => {
           `Are you sure you want to save the modifications for ${projectToBeSaved.project_name} ?`,
         )
       ) {
-        if (updateOwner && ownerEmailFromEdit) {
+        if (updateOwner) {
           await makeDatabaseAction(
             'updateOwner',
             projectToBeSaved.entry_id, //  use entry_id
             '',
             projectToBeSaved.adapter_code,
             projectToBeSaved.fixture_type,
-            ownerEmailFromEdit.value,
+            ownerEmailValue,
             0,
             0,
             loggedUser,
@@ -213,7 +204,7 @@ const ProjectsTable = (props: any) => {
             })
         }
 
-        if (updateContactsLimit && updateWarning && contactsLimitFromEdit && warningAtFromEdit) {
+        if (updateContactsLimit && updateWarning) {
           await makeDatabaseAction(
             'updateContactsLimitAndWarning',
             projectToBeSaved.entry_id, //  use entry_id
@@ -221,8 +212,8 @@ const ProjectsTable = (props: any) => {
             projectToBeSaved.adapter_code,
             projectToBeSaved.fixture_type,
             '',
-            Number(contactsLimitFromEdit.value),
-            Number(warningAtFromEdit.value),
+            Number(contactsLimitValue),
+            Number(warningAtValue),
             loggedUser,
           )
             .then((res) => JSON.parse(String(res)))
@@ -234,6 +225,7 @@ const ProjectsTable = (props: any) => {
 
           //in case user entered both warning and limit but the database did not update the info-> send error
           if (!updateContactsLimitAndWarningOK) {
+            setRowEditMode(rowNumber, true)
             props.openModalAction({
               title: 'Error!',
               description: `The Limit must be greater than the Warning!`,
@@ -262,8 +254,30 @@ const ProjectsTable = (props: any) => {
     }
   }
 
-  const handleResetButton = (e: any) => {
-    const indexOfEntryToBeReseted = e.target.id - 1
+  const handleSaveButton = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    const rowNumber = Number(e.currentTarget.id)
+    const rowIndex = rowNumber - 1
+
+    const ownerEmailFromEdit = document.getElementById(
+      `${rowIndex}_owner_email`,
+    ) as HTMLInputElement | null
+    const contactsLimitFromEdit = document.getElementById(
+      `${rowIndex}_contacts_limit`,
+    ) as HTMLInputElement | null
+    const warningAtFromEdit = document.getElementById(
+      `${rowIndex}_warning_at`,
+    ) as HTMLInputElement | null
+
+    await saveProjectChanges(
+      rowNumber,
+      ownerEmailFromEdit?.value ?? '',
+      contactsLimitFromEdit?.value ?? '',
+      warningAtFromEdit?.value ?? '',
+    )
+  }
+
+  const handleResetButton = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const indexOfEntryToBeReseted = Number(e.currentTarget.id) - 1
     const projectToBeReseted: Project = counterInfoDB[indexOfEntryToBeReseted]
     const loggedUser: string = String(
       session?.user?.email || session?.user?.name,
@@ -306,8 +320,8 @@ const ProjectsTable = (props: any) => {
     }
   }
 
-  const handleDeleteButton = (e: any) => {
-    const indexOfEntryToBeDeleted = e.target.id - 1
+  const handleDeleteButton = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const indexOfEntryToBeDeleted = Number(e.currentTarget.id) - 1
     const projectToBeDeleted: Project = counterInfoDB[indexOfEntryToBeDeleted]
 
     if (
@@ -529,6 +543,161 @@ const ProjectsTable = (props: any) => {
     );
   };
 
+  const renderProjectMobileCard = (proj: Project, idx: number) => {
+    const rowNumber = (currentPage - 1) * postPerPage.current + idx + 1;
+    const rowIndex = counterInfoDB.indexOf(proj);
+    const highlightClass = highlightProject[rowIndex]?.highlightTypeClass;
+    const editMode = EditModeForAllEntries?.[rowIndex]?.editMode;
+    const statusLabel =
+      highlightClass === 'bg-danger' ? 'Limit reached' : highlightClass === 'bg-warning' ? 'Warning' : 'OK';
+    const statusClass =
+      highlightClass === 'bg-danger'
+        ? 'projects-mobile-status-danger'
+        : highlightClass === 'bg-warning'
+        ? 'projects-mobile-status-warning'
+        : 'projects-mobile-status-ok';
+    const canManage = session?.user?.user_group === 'admin' || session?.user?.user_group === 'engineer';
+
+    const saveMobileProject = async () => {
+      const ownerEmailFromEdit = document.getElementById(
+        `mobile_${rowIndex}_owner_email`,
+      ) as HTMLInputElement | null;
+      const contactsLimitFromEdit = document.getElementById(
+        `mobile_${rowIndex}_contacts_limit`,
+      ) as HTMLInputElement | null;
+      const warningAtFromEdit = document.getElementById(
+        `mobile_${rowIndex}_warning_at`,
+      ) as HTMLInputElement | null;
+
+      await saveProjectChanges(
+        rowNumber,
+        ownerEmailFromEdit?.value ?? '',
+        contactsLimitFromEdit?.value ?? '',
+        warningAtFromEdit?.value ?? '',
+      );
+    };
+
+    return (
+      <div key={`${proj.adapter_code}-${proj.fixture_type}-mobile-${rowNumber}`} className="app-mobile-card projects-mobile-card">
+        <div className="projects-mobile-card-header">
+          <div>
+            <div className="projects-mobile-title">{proj.project_name}</div>
+            <div className="projects-mobile-subtitle">
+              {proj.adapter_code} / {proj.fixture_type}
+            </div>
+          </div>
+          <span className={`projects-mobile-status ${statusClass}`}>{statusLabel}</span>
+        </div>
+
+        <div className="projects-mobile-metrics">
+          <div>
+            <div className="app-mobile-card-label">Contacts</div>
+            <div className="app-mobile-card-value">{proj.contacts}</div>
+          </div>
+          <div>
+            <div className="app-mobile-card-label">Warning</div>
+            <div className="app-mobile-card-value">{proj.warning_at}</div>
+          </div>
+          <div>
+            <div className="app-mobile-card-label">Limit</div>
+            <div className="app-mobile-card-value">{proj.contacts_limit}</div>
+          </div>
+          <div>
+            <div className="app-mobile-card-label">Resets</div>
+            <div className="app-mobile-card-value">{proj.resets}</div>
+          </div>
+        </div>
+
+        <div>
+          <div className="app-mobile-card-label">Owner</div>
+          {editMode ? (
+            <input
+              id={`mobile_${rowIndex}_owner_email`}
+              name="owner_email_edit_mobile"
+              type="email"
+              className="form-control fw-bolder"
+              placeholder="Owner email"
+              aria-label="Owner"
+            />
+          ) : (
+            <div className="app-mobile-card-value">{proj.owner_email}</div>
+          )}
+        </div>
+
+        {editMode && (
+          <div className="projects-mobile-edit-grid">
+            <div>
+              <div className="app-mobile-card-label">New limit</div>
+              <input
+                id={`mobile_${rowIndex}_contacts_limit`}
+                name="contacts_limit_edit_mobile"
+                type="number"
+                className="form-control fw-bolder"
+                placeholder="Limit"
+                aria-label="Limit"
+              />
+            </div>
+            <div>
+              <div className="app-mobile-card-label">New warning</div>
+              <input
+                id={`mobile_${rowIndex}_warning_at`}
+                name="warning_at_edit_mobile"
+                type="number"
+                className="form-control fw-bolder"
+                placeholder="Warning"
+                aria-label="Warning"
+              />
+            </div>
+          </div>
+        )}
+
+        {proj.testprobes && (
+          <div>
+            <div className="app-mobile-card-label">Test probes</div>
+            <div className="projects-mobile-probes">
+              {proj.testprobes.split(';').map((line, i) => (
+                <div key={i}>{line.trim()}</div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="projects-mobile-footer">
+          <div>
+            <div className="app-mobile-card-label">Last update</div>
+            <div className="projects-mobile-date">
+              {new Date(proj.last_update).toLocaleDateString()}{' '}
+              {new Date(proj.last_update).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </div>
+          </div>
+
+          {!(props.mode === 'view') && (
+            <div className="projects-mobile-actions">
+              <button id={`${rowNumber}`} type="button" className="btn btn-secondary btn-sm" onClick={handleResetButton}>
+                Reset
+              </button>
+              {canManage && (
+                <button id={`${rowNumber}`} type="button" className="btn btn-danger btn-sm" onClick={handleDeleteButton}>
+                  Delete
+                </button>
+              )}
+              {canManage &&
+                (!editMode ? (
+                  <button id={`${rowNumber}`} type="button" className="btn btn-mycolor btn-sm" onClick={handleEditButton}>
+                    Edit
+                  </button>
+                ) : (
+                  <button type="button" className="btn btn-success btn-sm" onClick={saveMobileProject}>
+                    Save
+                  </button>
+                ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
 
   if (API_Responded) {
     return (
@@ -655,7 +824,7 @@ const ProjectsTable = (props: any) => {
             </tbody>
           </table>
         </div>
-        <div className="table-wrapper">
+        <div className="table-wrapper desktop-only">
           <div className="scroll-hint d-md-none text-center text-muted mb-2 small">
             Swipe to scroll →
           </div>
@@ -834,6 +1003,13 @@ const ProjectsTable = (props: any) => {
               </tbody>
             </table>
           </div>
+        </div>
+
+        <div className="mobile-only projects-mobile-list mx-2">
+          <div className="small text-white text-center mb-2">
+            Showing {displayedProjects.length} of {counterInfoDB.length} equipment
+          </div>
+          {displayedProjects.map((proj: Project, idx: number) => renderProjectMobileCard(proj, idx))}
         </div>
 
         <nav
