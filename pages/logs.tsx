@@ -474,6 +474,75 @@ const LogsPage = () => {
     );
   };
 
+  const renderLogMobileCard = (row: DbLogRow, idx: number, keyPrefix: string) => {
+    const tsRaw = row[TIMESTAMP_KEY];
+    const tsDate = tsRaw && !isNaN(new Date(tsRaw).getTime()) ? new Date(tsRaw) : null;
+    const actionKey = getActionKeyFromRow(row);
+    const actionDef = getActionDef(actionKey);
+    const project = String(row.project_name ?? "No project");
+    const adapter = String(row.adapter_code ?? "");
+    const fixture = String(row.fixture_type ?? "");
+    const plant = String(row.fixture_plant ?? "");
+    const actor = String(row.modified_by ?? row.actor ?? row.user_email ?? "");
+
+    return (
+      <button
+        key={`${keyPrefix}-${row.entry_id ?? idx}`}
+        type="button"
+        className="app-mobile-card logs-mobile-card"
+        onClick={() => handleRowClick(row)}
+      >
+        <div className="logs-mobile-card-header">
+          <div>
+            <div className="logs-mobile-card-title">{project}</div>
+            <div className="logs-mobile-card-meta">
+              {tsDate
+                ? `${tsDate.toLocaleDateString()} ${tsDate.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}`
+                : ""}
+            </div>
+          </div>
+          <span
+            className="logs-pill"
+            style={{
+              background: actionDef.pillBg,
+              color: actionDef.pillText,
+            }}
+          >
+            <span className="logs-pill-dot" style={{ background: actionDef.btnBg }} />
+            <span>{actionDef.label}</span>
+          </span>
+        </div>
+
+        <div className="logs-mobile-card-grid">
+          <div>
+            <div className="app-mobile-card-label">Equipment</div>
+            <div className="app-mobile-card-value">
+              {adapter}
+              {fixture ? ` / ${fixture}` : ""}
+            </div>
+          </div>
+          <div>
+            <div className="app-mobile-card-label">Plant</div>
+            <div className="app-mobile-card-value">{plant}</div>
+          </div>
+          <div>
+            <div className="app-mobile-card-label">Action</div>
+            <div className="app-mobile-card-value">{String(row.db_action ?? "")}</div>
+          </div>
+          <div>
+            <div className="app-mobile-card-label">User</div>
+            <div className="app-mobile-card-value">{actor}</div>
+          </div>
+        </div>
+
+        <span className="logs-mobile-card-details">Details</span>
+      </button>
+    );
+  };
+
   const totalTableCols = useMemo(() => {
     let cols = 1; // index column
     columnKeys.forEach((k) => {
@@ -800,7 +869,7 @@ const LogsPage = () => {
             {!loading && !error && sortedLogs.length === 0 && <p>No log entries found for the current filters.</p>}
 
             {!loading && !error && sortedLogs.length > 0 && (
-              <div className="table-responsive logs-table-wrapper logs-table-scroll">
+              <div className="table-responsive logs-table-wrapper logs-table-scroll desktop-only">
                 <table className="table table-sm table-striped table-hover align-middle logs-table">
                   <thead>
                     <tr>
@@ -923,6 +992,28 @@ const LogsPage = () => {
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {!loading && !error && sortedLogs.length > 0 && (
+              <div className="mobile-only">
+                <div className="small text-muted mb-2">
+                  {sortedLogs.length} logs shown
+                </div>
+                {groupedRows.map((block, bIdx) => {
+                  if (block.type === "rows") {
+                    return block.rows.map((row, idx) => renderLogMobileCard(row, idx, `mobile-${bIdx}`));
+                  }
+
+                  return (
+                    <div key={`mobile-group-${bIdx}`} className="mb-3">
+                      <div className="fw-bold text-muted mb-2">
+                        {block.title} ({block.rows.length})
+                      </div>
+                      {block.rows.map((row, idx) => renderLogMobileCard(row, idx, `mobile-group-${bIdx}`))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

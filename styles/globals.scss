@@ -1000,6 +1000,156 @@ select.form-control {
   padding-bottom: 2.5vh;
 }
 
+.mobile-only {
+  display: none;
+}
+
+.desktop-only {
+  display: block;
+}
+
+.app-mobile-card {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: #ffffff;
+  color: #212529;
+  text-align: left;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.14);
+}
+
+.app-mobile-card:active {
+  transform: scale(0.99);
+}
+
+.app-mobile-card-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #6c757d;
+  text-transform: uppercase;
+}
+
+.app-mobile-card-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.logs-mobile-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-bottom: 0.75rem;
+}
+
+.logs-mobile-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.logs-mobile-card-title {
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.logs-mobile-card-meta {
+  color: #6c757d;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.logs-mobile-card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem 0.75rem;
+}
+
+.logs-mobile-card-details {
+  align-self: flex-start;
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  background: #f1f3f5;
+  color: #343a40;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 767px) {
+  .mobile-only {
+    display: block;
+  }
+
+  .desktop-only {
+    display: none !important;
+  }
+
+  .paddingTopBottomLog {
+    padding-top: 1rem;
+    padding-bottom: 4.5rem;
+  }
+
+  .logs-date-filter {
+    min-width: 0;
+  }
+
+  .logs-topbar {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .legend-btn {
+    min-width: 0 !important;
+    width: 100%;
+    padding: 0.7rem;
+    border-radius: 10px;
+  }
+
+  .legend-title {
+    font-size: 0.82rem;
+  }
+
+  .legend-sub {
+    font-size: 0.75rem;
+  }
+
+  .group-btn,
+  .export-btn {
+    flex: 1 1 auto;
+    min-height: 40px;
+  }
+
+  .logs-modal-backdrop {
+    align-items: flex-end;
+    justify-content: stretch;
+  }
+
+  .logs-modal {
+    width: 100%;
+    max-width: none;
+    max-height: 92vh;
+    border-radius: 1rem 1rem 0 0;
+  }
+
+  .logs-modal .card-body {
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+
+  .logs-details dl {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .logs-detail-key {
+    min-width: 0;
+    font-size: 0.78rem;
+  }
+}
+
 
 .analytics-card {
   background: rgba(0, 0, 0, 0.55);
