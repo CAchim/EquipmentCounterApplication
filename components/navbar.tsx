@@ -230,7 +230,7 @@ const Navbar: React.FC = () => {
               <li className="nav-item me-3">
                 <div className="signin-wrapper">
                   <Link href="/signin" passHref>
-                    <button className="btn-signin menubuttons app-navbar-signin">
+                    <a className="btn-signin menubuttons app-navbar-signin">
                       <span className="signin-text fw-bold">Sign in</span>
                       <Image
                         src="/login.svg"
@@ -239,7 +239,7 @@ const Navbar: React.FC = () => {
                         height={22}
                         className="signin-icon"
                       />
-                    </button>
+                    </a>
                   </Link>
                 </div>
               </li>

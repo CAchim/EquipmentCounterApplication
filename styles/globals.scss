@@ -780,16 +780,6 @@ select.form-control {
     min-height: 32px;
   }
 
-  .custom-dropdown.app-navbar-dropdown {
-    position: fixed !important;
-    top: 56px !important;
-    right: 0.5rem !important;
-    left: 0.5rem !important;
-    width: auto;
-    margin-top: 0;
-    transform-origin: top right;
-  }
-
   .custom-dropdown.app-navbar-dropdown .dropdown-item {
     min-height: 42px;
     display: flex;
