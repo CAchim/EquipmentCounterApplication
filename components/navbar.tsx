@@ -56,7 +56,7 @@ const Navbar: React.FC = () => {
       className="navbar navbar-expand-lg navbar-dark bg-primary"
       role="navigation"
     >
-      <div className="container-fluid px-0 d-flex align-items-center justify-content-between flex-nowrap">
+      <div className="container-fluid app-navbar-inner d-flex align-items-center justify-content-between flex-nowrap">
         {/* Brand on the left */}
         <Link href={session ? "/editprojects" : "/"} passHref>
           <a className="navbar-brand navbar-logo-link d-flex align-items-center">
@@ -80,12 +80,13 @@ const Navbar: React.FC = () => {
               {appUser?.user_group === "admin" && (
                 <li className="nav-item dropdown me-3 flex-shrink-0">
                   <a
-                    className="nav-link buttons-hover d-inline-flex align-items-center"
+                    className="nav-link buttons-hover app-navbar-action d-inline-flex align-items-center justify-content-center"
                     href="#"
                     id="plantDropdown"
                     role="button"
                     data-bs-toggle="dropdown"
                     aria-expanded="false"
+                    aria-label="Select plant"
                     title="Plant location"
                   >
                     <Image
@@ -97,7 +98,7 @@ const Navbar: React.FC = () => {
                     />
                   </a>
                   <ul
-                    className="dropdown-menu dropdown-menu-end custom-dropdown"
+                    className="dropdown-menu dropdown-menu-end custom-dropdown app-navbar-dropdown"
                     aria-labelledby="plantDropdown"
                   >
                     <li>
@@ -130,7 +131,7 @@ const Navbar: React.FC = () => {
               {/* Selected plant */}
               {appUser?.user_group === "admin" && selectedPlant && (
                 <li className="me-3 flex-shrink-0">
-                  <span className="selected-plant-pill" title={selectedPlant}>
+                  <span className="selected-plant-pill app-navbar-plant-pill" title={selectedPlant}>
                     {selectedPlant}
                   </span>
                 </li>
@@ -139,12 +140,13 @@ const Navbar: React.FC = () => {
               {/* User avatar */}
               <li className="nav-item dropdown me-3 flex-shrink-0">
                 <a
-                  className="nav-link buttons-hover"
+                  className="nav-link buttons-hover app-navbar-action d-inline-flex align-items-center justify-content-center"
                   href="#"
                   id="userMenuDropdown"
                   role="button"
                   data-bs-toggle="dropdown"
                   aria-expanded="false"
+                  aria-label="Open user menu"
                   title="User menu"
                 >
                   <Image
@@ -158,7 +160,7 @@ const Navbar: React.FC = () => {
                 </a>
 
                 <ul
-                  className="dropdown-menu dropdown-menu-end custom-dropdown"
+                  className="dropdown-menu dropdown-menu-end custom-dropdown app-navbar-dropdown"
                   aria-labelledby="userMenuDropdown"
                 >
                   <li className="px-3 py-2 small text-muted">
@@ -228,7 +230,7 @@ const Navbar: React.FC = () => {
               <li className="nav-item me-3">
                 <div className="signin-wrapper">
                   <Link href="/signin" passHref>
-                    <button className="btn-signin menubuttons">
+                    <button className="btn-signin menubuttons app-navbar-signin">
                       <span className="signin-text fw-bold">Sign in</span>
                       <Image
                         src="/login.svg"
