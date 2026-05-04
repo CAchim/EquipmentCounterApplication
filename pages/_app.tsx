@@ -47,6 +47,10 @@ function LayoutWrapper({ Component, pageProps }: any) {
     }
   }, [status, session, router]);
 
+  if (Component.getLayout) {
+    return getLayout(<Component {...pageProps} />);
+  }
+
   // ✅ wrap with a shell so footer can stick to bottom
   return (
     <div className="app-shell">

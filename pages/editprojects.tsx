@@ -105,7 +105,7 @@ const EditProjects = () => {
         <title>Edit projects</title>
       </Head>
 
-      <div className="paddingTopBottom">
+      <div className="paddingTopBottom edit-projects-page">
         <Table openModalAction={openModal} />
       </div>
 
