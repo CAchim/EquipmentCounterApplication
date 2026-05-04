@@ -122,7 +122,7 @@ div::-webkit-scrollbar-thumb {
 }
 
 .paddingModal {
-  margin-top: 7%;
+  margin-top: 0;
 }
 
 .searchBarWidth {
@@ -173,12 +173,8 @@ div::-webkit-scrollbar-thumb {
 
 @include media-breakpoint-down(md) {
   .paddingTopBottom {
-    padding-top: 17vh;
-    padding-bottom: 10vh;
-  }
-
-  .edit-projects-page {
     padding-top: 0.75rem;
+    padding-bottom: 4.5rem;
   }
 }
 
@@ -187,8 +183,8 @@ div::-webkit-scrollbar-thumb {
     font-size: 11px;
   }
   .paddingTopBottom {
-    padding-top: 22vh;
-    padding-bottom: 10vh;
+    padding-top: 0.75rem;
+    padding-bottom: 4.5rem;
   }
 }
 
@@ -198,11 +194,54 @@ div::-webkit-scrollbar-thumb {
 }
 
 .screen-100 {
-  height: 100vh;
+  min-height: 100vh;
 }
 
 .screen-80 {
-  height: 80vh;
+  min-height: 80vh;
+}
+
+.form-page-shell {
+  min-height: calc(100vh - 7rem);
+  gap: 1rem;
+}
+
+.form-page-illustration {
+  width: min(520px, 70vw);
+  max-height: 28vh;
+  object-fit: contain;
+}
+
+.app-modal-panel {
+  width: min(640px, calc(100vw - 2rem)) !important;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  border-radius: 16px !important;
+  padding: clamp(1rem, 3vw, 2rem) !important;
+}
+
+@include media-breakpoint-down(md) {
+  .form-page-shell {
+    min-height: auto;
+    justify-content: flex-start !important;
+  }
+
+  .form-page-illustration {
+    width: min(320px, 58vw);
+    max-height: 18vh;
+  }
+}
+
+@include media-breakpoint-down(sm) {
+  .form-page-illustration {
+    display: none;
+  }
+
+  .app-modal-panel {
+    width: calc(100vw - 1rem) !important;
+    max-height: calc(100vh - 1rem);
+    padding: 1rem !important;
+  }
 }
 
 .scaleEffect {
