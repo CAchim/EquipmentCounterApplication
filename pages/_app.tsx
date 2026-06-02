@@ -51,7 +51,7 @@ function LayoutWrapper({ Component, pageProps }: any) {
     return getLayout(<Component {...pageProps} />);
   }
 
-  // ✅ wrap with a shell so footer can stick to bottom
+  // wrap with a shell so footer can stick to bottom
   return (
     <div className="app-shell">
       <main className="app-main">{getLayout(<Component {...pageProps} />)}</main>

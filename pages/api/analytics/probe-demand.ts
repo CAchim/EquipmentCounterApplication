@@ -26,6 +26,23 @@ type SelectedFixtureDetail = {
   estimated_used_qty: number;
 };
 
+type PeriodFixtureDemand = {
+  project_name: string | null;
+  adapter_code: string;
+  fixture_type: string;
+  resets: number;
+  total_requested_qty: number;
+  estimated_used_qty: number;
+};
+
+type MonthlyProbeDemand = {
+  month: string;
+  total_qty: number;
+  resets: number;
+  fixtures: number;
+  part_numbers: number;
+};
+
 type UsageSummary = {
   plant_resets_this_month: number;
   fixtures_with_probe_requests: number;
@@ -47,7 +64,7 @@ type FixtureProcessingResult = {
 async function mapWithConcurrency<T, R>(
   items: T[],
   concurrency: number,
-  mapper: (item: T) => Promise<R>
+  mapper: (item: T) => Promise<R>,
 ): Promise<R[]> {
   const limit = Math.max(1, Math.floor(concurrency));
   const results = new Array<R>(items.length);
@@ -61,12 +78,17 @@ async function mapWithConcurrency<T, R>(
     }
   }
 
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker),
+  );
   return results;
 }
 
 function aggregateDemand(fixtures: { probes: ProbeRow[] }[]) {
-  const agg = new Map<string, { part_number: string; total_qty: number; fixtures: number }>();
+  const agg = new Map<
+    string,
+    { part_number: string; total_qty: number; fixtures: number }
+  >();
 
   for (const fx of fixtures) {
     const seen = new Set<string>();
@@ -88,13 +110,72 @@ function aggregateDemand(fixtures: { probes: ProbeRow[] }[]) {
   return Array.from(agg.values()).sort((a, b) => b.total_qty - a.total_qty);
 }
 
-async function getFixtureForecast(plant: string, adapter: string, fixture: string, lookback: number) {
-  const rows: any = await queryDatabase("CALL getFixtureForecast(?,?,?,?)", [plant, adapter, fixture, lookback]);
+function aggregatePeriodDemand(
+  fixtures: { probes: ProbeRow[]; resets: number }[],
+  partNumberFilter = "",
+) {
+  const q = partNumberFilter.trim().toLowerCase();
+  const agg = new Map<
+    string,
+    { part_number: string; total_qty: number; fixtures: number }
+  >();
+
+  for (const fx of fixtures) {
+    const resets = Number(fx.resets ?? 0);
+    if (!Number.isFinite(resets) || resets <= 0) continue;
+
+    const seen = new Set<string>();
+    for (const p of fx.probes || []) {
+      const pn = String(p.part_number ?? "").trim();
+      const qty = Number(p.qty ?? 0);
+      if (!pn || !Number.isFinite(qty) || qty <= 0) continue;
+      if (q && !pn.toLowerCase().includes(q)) continue;
+
+      const cur = agg.get(pn) ?? { part_number: pn, total_qty: 0, fixtures: 0 };
+      cur.total_qty += qty * resets;
+      if (!seen.has(pn)) {
+        cur.fixtures += 1;
+        seen.add(pn);
+      }
+      agg.set(pn, cur);
+    }
+  }
+
+  return Array.from(agg.values()).sort((a, b) => b.total_qty - a.total_qty);
+}
+
+function parseDateParam(value: unknown, fallback: Date) {
+  const s = String(value ?? "").trim();
+  if (!s) return fallback;
+  const d = new Date(`${s}T00:00:00`);
+  return isNaN(d.getTime()) ? fallback : d;
+}
+
+async function getFixtureForecast(
+  plant: string,
+  adapter: string,
+  fixture: string,
+  lookback: number,
+) {
+  const rows: any = await queryDatabase("CALL getFixtureForecast(?,?,?,?)", [
+    plant,
+    adapter,
+    fixture,
+    lookback,
+  ]);
   return Array.isArray(rows) ? (rows[0]?.[0] ?? null) : null;
 }
 
-async function getTestProbesForProject(plant: string, adapter: string, fixture: string): Promise<ProbeRow[]> {
-  const rows: any = await queryDatabase("CALL getTestProbesForProject(?,?,?)", [adapter, fixture, plant]);
+async function getTestProbesForProject(
+  plant: string,
+  adapter: string,
+  fixture: string,
+): Promise<ProbeRow[]> {
+  const rows: any = await queryDatabase("CALL getTestProbesForProject(?,?,?)", [
+    adapter,
+    fixture,
+    plant,
+  ]);
   const data = Array.isArray(rows) ? (rows[0] ?? []) : [];
   return (data as any[]).map((r) => ({
     part_number: String(r.part_number ?? r.partNumber ?? "").trim(),
@@ -102,14 +183,16 @@ async function getTestProbesForProject(plant: string, adapter: string, fixture: 
   }));
 }
 
-async function getMonthlyResetsByFixture(plant: string): Promise<Map<string, number>> {
+async function getMonthlyResetsByFixture(
+  plant: string,
+): Promise<Map<string, number>> {
   const rows: any = await queryDatabase(
     `SELECT adapter_code, fixture_type, SUM(event_type='RESET') AS current_month_resets
      FROM fixture_events
      WHERE fixture_plant = ?
        AND created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')
      GROUP BY adapter_code, fixture_type`,
-    [plant]
+    [plant],
   );
 
   const map = new Map<string, number>();
@@ -121,19 +204,84 @@ async function getMonthlyResetsByFixture(plant: string): Promise<Map<string, num
   return map;
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "GET") return res.status(405).json({ ok: false, message: "Method Not Allowed" });
+async function getResetsByFixtureForPeriod(
+  plant: string,
+  startDate: string,
+  endDate: string,
+): Promise<Map<string, number>> {
+  const rows: any = await queryDatabase(
+    `SELECT adapter_code, fixture_type, COUNT(*) AS resets
+     FROM fixture_events
+     WHERE fixture_plant = ?
+       AND event_type = 'RESET'
+       AND created_at >= ?
+       AND created_at < DATE_ADD(?, INTERVAL 1 DAY)
+     GROUP BY adapter_code, fixture_type`,
+    [plant, startDate, endDate],
+  );
+
+  const map = new Map<string, number>();
+  if (!Array.isArray(rows)) return map;
+  for (const row of rows) {
+    const key = `${String(row.adapter_code ?? "").trim()}||${String(row.fixture_type ?? "").trim()}`;
+    map.set(key, Number(row.resets ?? 0));
+  }
+  return map;
+}
+
+async function getMonthlyResetsByFixtureForPeriod(
+  plant: string,
+  startDate: string,
+  endDate: string,
+) {
+  const rows: any = await queryDatabase(
+    `SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, adapter_code, fixture_type, COUNT(*) AS resets
+     FROM fixture_events
+     WHERE fixture_plant = ?
+       AND event_type = 'RESET'
+       AND created_at >= ?
+       AND created_at < DATE_ADD(?, INTERVAL 1 DAY)
+     GROUP BY DATE_FORMAT(created_at, '%Y-%m'), adapter_code, fixture_type
+     ORDER BY month ASC`,
+    [plant, startDate, endDate],
+  );
+
+  return Array.isArray(rows) ? rows : [];
+}
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== "GET")
+    return res.status(405).json({ ok: false, message: "Method Not Allowed" });
 
   const auth = await requireAnalyticsAuth(req, res);
   if (!auth.ok) return;
 
   const plantQ = String(req.query.plant ?? "").trim();
-  const plant = auth.isAdmin ? (plantQ || auth.userPlant || "") : (auth.userPlant || "");
+  const plant = auth.isAdmin
+    ? plantQ || auth.userPlant || ""
+    : auth.userPlant || "";
   const lookback = Number(req.query.lookback ?? 24);
   const selectedAdapter = String(req.query.adapter ?? "").trim();
   const selectedFixture = String(req.query.fixture ?? "").trim();
+  const partNumberFilter = String(req.query.partNumber ?? "").trim();
 
-  if (!plant) return res.status(400).json({ ok: false, message: "Missing plant" });
+  const defaultEnd = new Date();
+  const defaultStart = new Date(defaultEnd.getTime());
+  defaultStart.setMonth(defaultStart.getMonth() - 5);
+  defaultStart.setDate(1);
+
+  const startDateObj = parseDateParam(req.query.start, defaultStart);
+  const endDateObj = parseDateParam(req.query.end, defaultEnd);
+  const startDate = startDateObj.toISOString().slice(0, 10);
+  const endDate = endDateObj.toISOString().slice(0, 10);
+
+  if (!plant)
+    return res.status(400).json({ ok: false, message: "Missing plant" });
+  if (startDate > endDate)
+    return res.status(400).json({ ok: false, message: "Invalid date range" });
 
   const WEEK_HOURS = 168;
   const MONTH_HOURS = 720;
@@ -144,38 +292,75 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
        FROM Projects
        WHERE fixture_plant = ?
        ORDER BY project_name, adapter_code, fixture_type`,
-      [plant]
+      [plant],
     );
 
     const monthResets = await getMonthlyResetsByFixture(plant);
+    const periodResets = await getResetsByFixtureForPeriod(
+      plant,
+      startDate,
+      endDate,
+    );
+    const monthlyResetRows = await getMonthlyResetsByFixtureForPeriod(
+      plant,
+      startDate,
+      endDate,
+    );
     const lookbackHours = Number.isFinite(lookback) ? lookback : 24;
-    const validFixtures = (Array.isArray(fixtures) ? fixtures : []).filter((fx) => {
-      const adapter = String(fx.adapter_code ?? "").trim();
-      const fixtureType = String(fx.fixture_type ?? "").trim();
-      return adapter && fixtureType;
-    });
+    const validFixtures = (Array.isArray(fixtures) ? fixtures : []).filter(
+      (fx) => {
+        const adapter = String(fx.adapter_code ?? "").trim();
+        const fixtureType = String(fx.fixture_type ?? "").trim();
+        return adapter && fixtureType;
+      },
+    );
 
-    const processedFixtures = await mapWithConcurrency<any, FixtureProcessingResult | null>(validFixtures, 4, async (fx) => {
+    const processedFixtures = await mapWithConcurrency<
+      any,
+      | (FixtureProcessingResult & {
+          periodFixtureDemand: PeriodFixtureDemand | null;
+          periodResets: number;
+        })
+      | null
+    >(validFixtures, 4, async (fx) => {
       const adapter = String(fx.adapter_code ?? "").trim();
       const fixtureType = String(fx.fixture_type ?? "").trim();
       if (!adapter || !fixtureType) return null;
 
       const key = `${adapter}||${fixtureType}`;
       const currentMonthResets = Number(monthResets.get(key) ?? 0);
-      const isSelectedFixture = selectedAdapter === adapter && selectedFixture === fixtureType;
-      const fc = await getFixtureForecast(plant, adapter, fixtureType, lookbackHours);
+      const selectedPeriodResets = Number(periodResets.get(key) ?? 0);
+      const isSelectedFixture =
+        selectedAdapter === adapter && selectedFixture === fixtureType;
+      const fc = await getFixtureForecast(
+        plant,
+        adapter,
+        fixtureType,
+        lookbackHours,
+      );
       const eta = fc?.eta_limit_hours;
-      const isOverLimit = typeof fx.contacts_limit === "number" && Number(fx.contacts_limit) > 0 && Number(fx.contacts ?? 0) >= Number(fx.contacts_limit);
+      const isOverLimit =
+        typeof fx.contacts_limit === "number" &&
+        Number(fx.contacts_limit) > 0 &&
+        Number(fx.contacts ?? 0) >= Number(fx.contacts_limit);
       const etaNum = Number.isFinite(Number(eta)) ? Number(eta) : null;
       const willHitWeek = etaNum != null && etaNum <= WEEK_HOURS;
       const willHitMonth = etaNum != null && etaNum <= MONTH_HOURS;
-      const shouldFetchProbes = currentMonthResets > 0 || isSelectedFixture || isOverLimit || willHitMonth;
+      const shouldFetchProbes =
+        currentMonthResets > 0 ||
+        selectedPeriodResets > 0 ||
+        isSelectedFixture ||
+        isOverLimit ||
+        willHitMonth;
 
       const probes: ProbeRow[] = shouldFetchProbes
         ? await getTestProbesForProject(plant, adapter, fixtureType)
         : [];
 
-      const totalRequestedQty = probes.reduce((sum, probe) => sum + (Number(probe.qty) || 0), 0);
+      const totalRequestedQty = probes.reduce(
+        (sum, probe) => sum + (Number(probe.qty) || 0),
+        0,
+      );
       const estimatedUsedQty = currentMonthResets * totalRequestedQty;
 
       const obj: FixtureInfo = {
@@ -209,6 +394,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         totalRequestedQty,
         estimatedUsedQty,
         probes,
+        periodResets: selectedPeriodResets,
+        periodFixtureDemand:
+          selectedPeriodResets > 0 && totalRequestedQty > 0
+            ? {
+                project_name: fx.project_name ?? null,
+                adapter_code: adapter,
+                fixture_type: fixtureType,
+                resets: selectedPeriodResets,
+                total_requested_qty: totalRequestedQty,
+                estimated_used_qty: selectedPeriodResets * totalRequestedQty,
+              }
+            : null,
       };
     });
 
@@ -221,13 +418,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let currentMonthEstimatedUsedQtyTotal = 0;
     let fixturesWithProbeRequests = 0;
     let selectedFixtureDetail: SelectedFixtureDetail | null = null;
+    const periodFixtureDemand: PeriodFixtureDemand[] = [];
+    const periodFixtureSource: { probes: ProbeRow[]; resets: number }[] = [];
+    const fixtureProbeCache = new Map<string, ProbeRow[]>();
 
     for (const result of processedFixtures) {
       if (!result) continue;
 
       if (result.weekFixture) weekList.push(result.weekFixture);
       if (result.monthFixture) monthList.push(result.monthFixture);
-      if (result.selectedFixtureDetail) selectedFixtureDetail = result.selectedFixtureDetail;
+      if (result.selectedFixtureDetail)
+        selectedFixtureDetail = result.selectedFixtureDetail;
+      if (result.periodFixtureDemand)
+        periodFixtureDemand.push(result.periodFixtureDemand);
+      if (result.periodResets > 0 && result.probes.length)
+        periodFixtureSource.push({
+          probes: result.probes,
+          resets: result.periodResets,
+        });
+
+      const fxKeyForCache = result.selectedFixtureDetail
+        ? `${result.selectedFixtureDetail.adapter_code}||${result.selectedFixtureDetail.fixture_type}`
+        : null;
+      if (fxKeyForCache) fixtureProbeCache.set(fxKeyForCache, result.probes);
 
       if (result.currentMonthResets > 0 && result.totalRequestedQty > 0) {
         fixturesWithProbeRequests += 1;
@@ -241,6 +454,64 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
+    const periodDemandByPn = aggregatePeriodDemand(
+      periodFixtureSource,
+      partNumberFilter,
+    );
+    const periodSummary = {
+      resets: Array.from(periodResets.values()).reduce(
+        (acc, value) => acc + Number(value || 0),
+        0,
+      ),
+      fixtures: periodFixtureDemand.length,
+      part_numbers: periodDemandByPn.length,
+      total_qty: periodDemandByPn.reduce(
+        (acc, row) => acc + Number(row.total_qty || 0),
+        0,
+      ),
+    };
+
+    const monthlySource = new Map<
+      string,
+      { probes: ProbeRow[]; resets: number }[]
+    >();
+    for (const row of monthlyResetRows as any[]) {
+      const adapter = String(row.adapter_code ?? "").trim();
+      const fixtureType = String(row.fixture_type ?? "").trim();
+      const key = `${adapter}||${fixtureType}`;
+      const probes =
+        fixtureProbeCache.get(key) ??
+        (await getTestProbesForProject(plant, adapter, fixtureType));
+      fixtureProbeCache.set(key, probes);
+      const month = String(row.month ?? "").trim();
+      const resets = Number(row.resets ?? 0);
+      if (!month || !resets || !probes.length) continue;
+      const list = monthlySource.get(month) ?? [];
+      list.push({ probes, resets });
+      monthlySource.set(month, list);
+    }
+
+    const monthlyTrend: MonthlyProbeDemand[] = Array.from(
+      monthlySource.entries(),
+    )
+      .map(([month, items]) => {
+        const byPn = aggregatePeriodDemand(items, partNumberFilter);
+        return {
+          month,
+          total_qty: byPn.reduce(
+            (acc, row) => acc + Number(row.total_qty || 0),
+            0,
+          ),
+          resets: items.reduce(
+            (acc, item) => acc + Number(item.resets || 0),
+            0,
+          ),
+          fixtures: items.length,
+          part_numbers: byPn.length,
+        };
+      })
+      .sort((a, b) => a.month.localeCompare(b.month));
+
     const currentMonthUsage: UsageSummary = {
       plant_resets_this_month: currentMonthResetsTotal,
       fixtures_with_probe_requests: fixturesWithProbeRequests,
@@ -253,12 +524,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ok: true,
       plant,
       lookbackHours,
+      dateRange: { startDate, endDate },
       currentMonthUsage,
       selectedFixture: selectedFixtureDetail,
-      week: { horizonHours: WEEK_HOURS, fixtures: weekList, demandByPn: aggregateDemand(weekList) },
-      month: { horizonHours: MONTH_HOURS, fixtures: monthList, demandByPn: aggregateDemand(monthList) },
+      period: {
+        summary: periodSummary,
+        monthlyTrend,
+        demandByPn: periodDemandByPn,
+        fixtures: periodFixtureDemand.sort(
+          (a, b) => b.estimated_used_qty - a.estimated_used_qty,
+        ),
+      },
+      week: {
+        horizonHours: WEEK_HOURS,
+        fixtures: weekList,
+        demandByPn: aggregateDemand(weekList),
+      },
+      month: {
+        horizonHours: MONTH_HOURS,
+        fixtures: monthList,
+        demandByPn: aggregateDemand(monthList),
+      },
     });
   } catch (e: any) {
-    return res.status(500).json({ ok: false, message: e?.message || "Server error" });
+    return res
+      .status(500)
+      .json({ ok: false, message: e?.message || "Server error" });
   }
 }
