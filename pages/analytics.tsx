@@ -1448,7 +1448,7 @@ export default function AnalyticsPage() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="total_qty" name="Estimated probes used" />
+                  <Bar dataKey="total_qty" name="Estimated probes used" fill="8B5CF6" radius={[4, 4, 0, 0]}/>
                   <Line
                     type="monotone"
                     dataKey="resets"
