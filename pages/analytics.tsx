@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 
 const LineChart = dynamic(() => import("recharts").then((m) => m.LineChart), {
@@ -208,30 +208,41 @@ async function fetchJson<T = any>(url: string, init?: RequestInit): Promise<T> {
   return JSON.parse(text) as T;
 }
 
-/** Measure element size with ResizeObserver (used for explicit LineChart width/height) */
+/** Measure element size with ResizeObserver (works also for tab-mounted charts) */
 function useMeasuredSize<T extends HTMLElement>() {
-  const ref = useRef<T | null>(null);
+  const [node, setNode] = useState<T | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+  const ref = useCallback((el: T | null) => {
+    setNode(el);
+  }, []);
 
-    const ro = new ResizeObserver((entries) => {
-      const cr = entries[0]?.contentRect;
-      if (!cr) return;
-      const w = Math.floor(cr.width);
-      const h = Math.floor(cr.height);
-      // guard
+  useEffect(() => {
+    if (!node) return;
+
+    const measure = () => {
+      const rect = node.getBoundingClientRect();
+      const w = Math.floor(rect.width);
+      const h = Math.floor(rect.height);
+
       if (w <= 0 || h <= 0) return;
+
       setSize((prev) =>
         prev.width === w && prev.height === h ? prev : { width: w, height: h },
       );
-    });
+    };
 
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+    measure();
+
+    const ro = new ResizeObserver(measure);
+    ro.observe(node);
+    window.addEventListener("resize", measure);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [node]);
 
   return { ref, width: size.width, height: size.height };
 }
