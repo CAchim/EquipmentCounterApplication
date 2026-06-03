@@ -362,6 +362,7 @@ export default function AnalyticsPage() {
     useState<string>(defaultProbeStart);
   const [probeEndDate, setProbeEndDate] = useState<string>(defaultProbeEnd);
   const [probePartSearch, setProbePartSearch] = useState<string>("");
+  const [probeScope, setProbeScope] = useState<"plant" | "fixture">("plant");
 
   const demandSummary = useMemo(() => {
     const sum = (rows: DemandAggRow[]) => ({
@@ -613,13 +614,13 @@ export default function AnalyticsPage() {
           week: { demandByPn: DemandAggRow[] };
           month: { demandByPn: DemandAggRow[] };
         }>(
-          `/api/analytics/probe-demand?plant=${encodeURIComponent(selectedPlant)}&adapter=${encodeURIComponent(
-            selectedFixture.adapter_code,
-          )}&fixture=${encodeURIComponent(selectedFixture.fixture_type)}&lookback=${encodeURIComponent(
-            String(lookbackHours),
-          )}&start=${encodeURIComponent(probeStartDate)}&end=${encodeURIComponent(probeEndDate)}&partNumber=${encodeURIComponent(
-            probePartSearch,
-          )}`,
+          `/api/analytics/probe-demand?plant=${encodeURIComponent(selectedPlant)}&scope=${encodeURIComponent(
+            probeScope,
+          )}&adapter=${encodeURIComponent(selectedFixture.adapter_code)}&fixture=${encodeURIComponent(
+            selectedFixture.fixture_type,
+          )}&lookback=${encodeURIComponent(String(lookbackHours))}&start=${encodeURIComponent(
+            probeStartDate,
+          )}&end=${encodeURIComponent(probeEndDate)}&partNumber=${encodeURIComponent(probePartSearch)}`,
           { signal },
         ),
       ]);
@@ -692,6 +693,7 @@ export default function AnalyticsPage() {
     probeStartDate,
     probeEndDate,
     probePartSearch,
+    probeScope,
   ]);
 
   const warningLine =
@@ -1159,92 +1161,100 @@ export default function AnalyticsPage() {
           </select>
         </div>
 
-        <div>
-          <div style={labelStyle}>
-            Fixture search{" "}
-            <Hint text="Type project / adapter / type. Press Esc to clear. Press / to focus from anywhere." />
-          </div>
-          <input
-            ref={fixtureSearchRef}
-            value={fixtureSearch}
-            onChange={(e) => setFixtureSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                e.preventDefault();
-                setFixtureSearch("");
-                setFixtureSearchDebounced("");
-              }
-            }}
-            placeholder="Search project / adapter / fixture type…"
-            style={fieldStyle}
-          />
-        </div>
+        {tab !== "probe" ? (
+          <>
+            <div>
+              <div style={labelStyle}>
+                Fixture search{" "}
+                <Hint text="Type project / adapter / type. Press Esc to clear. Press / to focus from anywhere." />
+              </div>
+              <input
+                ref={fixtureSearchRef}
+                value={fixtureSearch}
+                onChange={(e) => setFixtureSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setFixtureSearch("");
+                    setFixtureSearchDebounced("");
+                  }
+                }}
+                placeholder="Search project / adapter / fixture type…"
+                style={fieldStyle}
+              />
+            </div>
 
-        <div style={{ gridColumn: "span 2" }}>
-          <div style={labelStyle}>
-            Fixture{" "}
-            <Hint text="Dropdown is filtered by the search box. It won't move around while typing." />
-          </div>
-          <select
-            value={selectedFixtureKey}
-            onChange={(e) => setSelectedFixtureKey(e.target.value)}
-            style={fieldStyle}
-          >
-            {filteredFixtures.length ? (
-              filteredFixtures.map((x) => (
-                <option
-                  key={x.entry_id}
-                  value={`${x.adapter_code}||${x.fixture_type}`}
-                >
-                  {x.project_name} — {x.adapter_code} / {x.fixture_type}
-                </option>
-              ))
-            ) : (
-              <option value="">No fixtures match search</option>
-            )}
-          </select>
-        </div>
+            <div style={{ gridColumn: "span 2" }}>
+              <div style={labelStyle}>
+                Fixture{" "}
+                <Hint text="Dropdown is filtered by the search box. It won't move around while typing." />
+              </div>
+              <select
+                value={selectedFixtureKey}
+                onChange={(e) => setSelectedFixtureKey(e.target.value)}
+                style={fieldStyle}
+              >
+                {filteredFixtures.length ? (
+                  filteredFixtures.map((x) => (
+                    <option
+                      key={x.entry_id}
+                      value={`${x.adapter_code}||${x.fixture_type}`}
+                    >
+                      {x.project_name} — {x.adapter_code} / {x.fixture_type}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">No fixtures match search</option>
+                )}
+              </select>
+            </div>
+          </>
+        ) : null}
 
-        <div>
-          <div style={labelStyle}>
-            Forecast lookback{" "}
-            <Hint text="Hours used for burn-rate calculation. Longer = smoother but slower to react." />
+        {tab !== "probe" ? (
+          <div>
+            <div style={labelStyle}>
+              Forecast lookback{" "}
+              <Hint text="Hours used for burn-rate calculation. Longer = smoother but slower to react." />
+            </div>
+            <select
+              value={lookbackHours}
+              onChange={(e) => setLookbackHours(Number(e.target.value))}
+              style={fieldStyle}
+            >
+              <option value={12}>12 hours</option>
+              <option value={24}>24 hours</option>
+              <option value={48}>48 hours</option>
+              <option value={72}>72 hours</option>
+              <option value={168}>7 days</option>
+              <option value={336}>14 days</option>
+              <option value={720}>30 days</option>
+            </select>
           </div>
-          <select
-            value={lookbackHours}
-            onChange={(e) => setLookbackHours(Number(e.target.value))}
-            style={fieldStyle}
-          >
-            <option value={12}>12 hours</option>
-            <option value={24}>24 hours</option>
-            <option value={48}>48 hours</option>
-            <option value={72}>72 hours</option>
-            <option value={168}>7 days</option>
-            <option value={336}>14 days</option>
-            <option value={720}>30 days</option>
-          </select>
-        </div>
+        ) : null}
 
-        <div>
-          <div style={labelStyle}>
-            Series range{" "}
-            <Hint text="Time window shown in the chart. You can go up to 365 days." />
+        {tab === "trends" ? (
+          <div>
+            <div style={labelStyle}>
+              Series range{" "}
+              <Hint text="Time window shown in the chart. You can go up to 365 days." />
+            </div>
+            <select
+              value={seriesHours}
+              onChange={(e) => setSeriesHours(Number(e.target.value))}
+              style={fieldStyle}
+            >
+              <option value={24}>24 hours</option>
+              <option value={72}>72 hours</option>
+              <option value={168}>7 days</option>
+              <option value={336}>14 days</option>
+              <option value={720}>30 days</option>
+              <option value={1440}>60 days</option>
+              <option value={2160}>90 days</option>
+              <option value={8760}>365 days</option>
+            </select>
           </div>
-          <select
-            value={seriesHours}
-            onChange={(e) => setSeriesHours(Number(e.target.value))}
-            style={fieldStyle}
-          >
-            <option value={24}>24 hours</option>
-            <option value={72}>72 hours</option>
-            <option value={168}>7 days</option>
-            <option value={336}>14 days</option>
-            <option value={720}>30 days</option>
-            <option value={1440}>60 days</option>
-            <option value={2160}>90 days</option>
-            <option value={8760}>365 days</option>
-          </select>
-        </div>
+        ) : null}
 
         <div>
           <button
@@ -1263,21 +1273,24 @@ export default function AnalyticsPage() {
           >
             {loading ? "Loading…" : "Refresh"}
           </button>
-
-          {/* {lastLoadedAt ? (
-            <div className="label" style={{ marginTop: 6, color: "#fff", opacity: 0.85 }}>
-              Last refresh: {lastLoadedAt}
-            </div>
-          ) : null} */}
         </div>
       </div>
 
       <div style={labelStyle}>
         <div
           className="label"
-          style={{ marginTop: 6, color: "#fff", opacity: 0.85 }}
+          style={{ marginTop: 6, marginBottom: 12, color: "#fff", opacity: 0.85 }}
         >
-          {selectedFixture ? (
+          {tab === "probe" ? (
+            probeScope === "fixture" && selectedFixture ? (
+              <>
+                Probe Demand scope: {selectedFixture.project_name} —{" "}
+                {selectedFixture.adapter_code} / {selectedFixture.fixture_type}
+              </>
+            ) : (
+              <>Probe Demand scope: plant overview for {selectedPlant}</>
+            )
+          ) : selectedFixture ? (
             <>
               Selected: {selectedFixture.project_name} —{" "}
               {selectedFixture.adapter_code} / {selectedFixture.fixture_type}
@@ -1320,21 +1333,85 @@ export default function AnalyticsPage() {
             >
               <div>
                 <div style={{ fontWeight: 900, fontSize: 18 }}>
-                  Plant probe demand overview
+                  {probeScope === "fixture" ? "Fixture probe demand overview" : "Plant probe demand overview"}
                 </div>
                 <div className="label" style={{ opacity: 0.9, marginTop: 4 }}>
-                  Estimated probe consumption based on counter reset events in
-                  the selected period and the current probe BOM.
+                  {probeScope === "fixture"
+                    ? "Estimated probe consumption for the selected fixture, based on reset events in the selected period and its current probe BOM."
+                    : "Estimated probe consumption for the full selected plant, based on reset events in the selected period and the current probe BOM."}
                 </div>
               </div>
               <div
                 style={{
-                  display: "flex",
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
                   gap: 8,
-                  flexWrap: "wrap",
-                  alignItems: "center",
+                  alignItems: "end",
+                  minWidth: 520,
+                  flex: "1 1 520px",
                 }}
               >
+                <div>
+                  <div className="label" style={{ marginBottom: 4 }}>
+                    View mode
+                  </div>
+                  <select
+                    className="form-control form-control-sm"
+                    value={probeScope}
+                    onChange={(e) => setProbeScope(e.target.value as "plant" | "fixture")}
+                  >
+                    <option value="plant">Plant overview</option>
+                    <option value="fixture">Specific fixture</option>
+                  </select>
+                </div>
+
+                {probeScope === "fixture" ? (
+                  <>
+                    <div>
+                      <div className="label" style={{ marginBottom: 4 }}>
+                        Fixture search
+                      </div>
+                      <input
+                        ref={fixtureSearchRef}
+                        className="form-control form-control-sm"
+                        placeholder="Search fixture..."
+                        value={fixtureSearch}
+                        onChange={(e) => setFixtureSearch(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") {
+                            e.preventDefault();
+                            setFixtureSearch("");
+                            setFixtureSearchDebounced("");
+                          }
+                        }}
+                      />
+                    </div>
+                    <div style={{ gridColumn: "span 2" }}>
+                      <div className="label" style={{ marginBottom: 4 }}>
+                        Fixture
+                      </div>
+                      <select
+                        className="form-control form-control-sm"
+                        value={selectedFixtureKey}
+                        onChange={(e) => setSelectedFixtureKey(e.target.value)}
+                      >
+                        {filteredFixtures.length ? (
+                          filteredFixtures.map((x) => (
+                            <option
+                              key={x.entry_id}
+                              value={`${x.adapter_code}||${x.fixture_type}`}
+                            >
+                              {x.project_name} — {x.adapter_code} / {x.fixture_type}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="">No fixtures match search</option>
+                        )}
+                      </select>
+                    </div>
+                  </>
+                ) : null}
+
                 <div>
                   <div className="label" style={{ marginBottom: 4 }}>
                     From
@@ -1344,7 +1421,6 @@ export default function AnalyticsPage() {
                     className="form-control form-control-sm"
                     value={probeStartDate}
                     onChange={(e) => setProbeStartDate(e.target.value)}
-                    style={{ minWidth: 150 }}
                   />
                 </div>
                 <div>
@@ -1356,7 +1432,6 @@ export default function AnalyticsPage() {
                     className="form-control form-control-sm"
                     value={probeEndDate}
                     onChange={(e) => setProbeEndDate(e.target.value)}
-                    style={{ minWidth: 150 }}
                   />
                 </div>
                 <div>
@@ -1368,7 +1443,6 @@ export default function AnalyticsPage() {
                     placeholder="Search probe PN..."
                     value={probePartSearch}
                     onChange={(e) => setProbePartSearch(e.target.value)}
-                    style={{ minWidth: 220 }}
                   />
                 </div>
               </div>
@@ -1416,7 +1490,11 @@ export default function AnalyticsPage() {
                 {fmtNumber(probePeriodSummary?.part_numbers)}
               </div>
               <div className="label" style={{ marginTop: 6 }}>
-                {probePartSearch ? "Filtered" : "Plant overview"}
+                {probePartSearch
+                  ? "Filtered"
+                  : probeScope === "fixture"
+                    ? "Fixture overview"
+                    : "Plant overview"}
               </div>
             </div>
           </div>
@@ -1429,8 +1507,9 @@ export default function AnalyticsPage() {
               Monthly probe demand trend
             </div>
             <div className="label" style={{ opacity: 0.9, marginBottom: 10 }}>
-              Monthly estimated quantities for the whole selected plant. This is
-              intended for stock planning and demand visibility.
+              {probeScope === "fixture"
+                ? "Monthly estimated quantities for the selected fixture. Useful for understanding local probe consumption patterns."
+                : "Monthly estimated quantities for the whole selected plant. This is intended for stock planning and demand visibility."}
             </div>
             <div
               ref={probeChartBox.ref}
@@ -1443,16 +1522,25 @@ export default function AnalyticsPage() {
                   data={probeMonthlyTrend}
                   margin={{ top: 10, right: 20, bottom: 12, left: 0 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
-                  <XAxis dataKey="month" />
-                  <YAxis />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.35)" opacity={0.35} />
+                  <XAxis dataKey="month" stroke="#FFFFFF" tick={{ fill: "#FFFFFF" }} />
+                  <YAxis stroke="#FFFFFF" tick={{ fill: "#FFFFFF" }} domain={[0, "dataMax + 500"]} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="total_qty" name="Estimated probes used" fill="8B5CF6" radius={[4, 4, 0, 0]}/>
+                  <Bar
+                    dataKey="total_qty"
+                    name="Estimated probes used"
+                    fill="#A855F7"
+                    stroke="#C084FC"
+                    strokeWidth={1}
+                    radius={[4, 4, 0, 0]}
+                  />
                   <Line
                     type="monotone"
                     dataKey="resets"
                     name="Resets"
+                    stroke="#22D3EE"
+                    strokeWidth={3}
                     dot={false}
                   />
                 </ComposedChart>
@@ -1534,8 +1622,9 @@ export default function AnalyticsPage() {
                 Demand by fixture
               </div>
               <div className="label" style={{ opacity: 0.9, marginBottom: 10 }}>
-                Highlights which fixtures generated the highest estimated probe
-                demand.
+                {probeScope === "fixture"
+                  ? "Shows the selected fixture contribution for the selected period."
+                  : "Highlights which fixtures generated the highest estimated probe demand."}
               </div>
               <div style={{ overflowX: "auto", maxHeight: 460 }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>

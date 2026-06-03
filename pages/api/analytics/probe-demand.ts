@@ -266,6 +266,8 @@ export default async function handler(
   const lookback = Number(req.query.lookback ?? 24);
   const selectedAdapter = String(req.query.adapter ?? "").trim();
   const selectedFixture = String(req.query.fixture ?? "").trim();
+  const scope = String(req.query.scope ?? "plant").trim().toLowerCase();
+  const periodScope = scope === "fixture" ? "fixture" : "plant";
   const partNumberFilter = String(req.query.partNumber ?? "").trim();
 
   const defaultEnd = new Date();
@@ -315,6 +317,8 @@ export default async function handler(
       },
     );
 
+    const selectedFixtureKey = `${selectedAdapter}||${selectedFixture}`;
+
     const processedFixtures = await mapWithConcurrency<
       any,
       | (FixtureProcessingResult & {
@@ -329,9 +333,12 @@ export default async function handler(
 
       const key = `${adapter}||${fixtureType}`;
       const currentMonthResets = Number(monthResets.get(key) ?? 0);
-      const selectedPeriodResets = Number(periodResets.get(key) ?? 0);
       const isSelectedFixture =
         selectedAdapter === adapter && selectedFixture === fixtureType;
+      const includeInPeriod = periodScope === "plant" || isSelectedFixture;
+      const selectedPeriodResets = includeInPeriod
+        ? Number(periodResets.get(key) ?? 0)
+        : 0;
       const fc = await getFixtureForecast(
         plant,
         adapter,
@@ -350,8 +357,7 @@ export default async function handler(
         currentMonthResets > 0 ||
         selectedPeriodResets > 0 ||
         isSelectedFixture ||
-        isOverLimit ||
-        willHitMonth;
+        (periodScope === "plant" && (isOverLimit || willHitMonth));
 
       const probes: ProbeRow[] = shouldFetchProbes
         ? await getTestProbesForProject(plant, adapter, fixtureType)
@@ -437,10 +443,12 @@ export default async function handler(
           resets: result.periodResets,
         });
 
-      const fxKeyForCache = result.selectedFixtureDetail
-        ? `${result.selectedFixtureDetail.adapter_code}||${result.selectedFixtureDetail.fixture_type}`
-        : null;
-      if (fxKeyForCache) fixtureProbeCache.set(fxKeyForCache, result.probes);
+      if (result.probes.length) {
+        const detailKey = result.selectedFixtureDetail
+          ? `${result.selectedFixtureDetail.adapter_code}||${result.selectedFixtureDetail.fixture_type}`
+          : null;
+        if (detailKey) fixtureProbeCache.set(detailKey, result.probes);
+      }
 
       if (result.currentMonthResets > 0 && result.totalRequestedQty > 0) {
         fixturesWithProbeRequests += 1;
@@ -458,8 +466,12 @@ export default async function handler(
       periodFixtureSource,
       partNumberFilter,
     );
+    const periodResetValues = periodScope === "fixture"
+      ? [Number(periodResets.get(selectedFixtureKey) ?? 0)]
+      : Array.from(periodResets.values());
+
     const periodSummary = {
-      resets: Array.from(periodResets.values()).reduce(
+      resets: periodResetValues.reduce(
         (acc, value) => acc + Number(value || 0),
         0,
       ),
@@ -479,6 +491,7 @@ export default async function handler(
       const adapter = String(row.adapter_code ?? "").trim();
       const fixtureType = String(row.fixture_type ?? "").trim();
       const key = `${adapter}||${fixtureType}`;
+      if (periodScope === "fixture" && key !== selectedFixtureKey) continue;
       const probes =
         fixtureProbeCache.get(key) ??
         (await getTestProbesForProject(plant, adapter, fixtureType));
@@ -523,6 +536,7 @@ export default async function handler(
     return res.status(200).json({
       ok: true,
       plant,
+      scope: periodScope,
       lookbackHours,
       dateRange: { startDate, endDate },
       currentMonthUsage,
